@@ -2,14 +2,14 @@
 #define hw2 64
 
 const float weight[hw2] = {
-  3.2323232323232323, 0.23088023088023088, 1.3852813852813852, 1.0389610389610389, 1.0389610389610389, 1.3852813852813852, 0.23088023088023088, 3.2323232323232323,
-  0.23088023088023088, 0.0, 0.9004329004329005, 0.9004329004329005, 0.9004329004329005, 0.9004329004329005, 0.0, 0.23088023088023088,
-  1.3852813852813852, 0.9004329004329005, 1.0389610389610389, 0.9466089466089466, 0.9466089466089466, 1.0389610389610389, 0.9004329004329005, 1.3852813852813852,
-  1.0389610389610389, 0.9004329004329005, 0.9466089466089466, 0.9235209235209235, 0.9235209235209235, 0.9466089466089466, 0.9004329004329005, 1.0389610389610389,
-  1.0389610389610389, 0.9004329004329005, 0.9466089466089466, 0.9235209235209235, 0.9235209235209235, 0.9466089466089466, 0.9004329004329005, 1.0389610389610389,
-  1.3852813852813852, 0.9004329004329005, 1.0389610389610389, 0.9466089466089466, 0.9466089466089466, 1.0389610389610389, 0.9004329004329005, 1.3852813852813852,
-  0.23088023088023088, 0.0, 0.9004329004329005, 0.9004329004329005, 0.9004329004329005, 0.9004329004329005, 0.0, 0.23088023088023088,
-  3.2323232323232323, 0.23088023088023088, 1.3852813852813852, 1.0389610389610389, 1.0389610389610389, 1.3852813852813852, 0.23088023088023088, 3.2323232323232323
+  2.0634920634920637, 0.7936507936507936, 1.8253968253968254, 0.8571428571428571, 0.8571428571428571, 1.8253968253968254, 0.7936507936507936, 2.0634920634920637,
+  0.7936507936507936, 0.0, 0.4603174603174603, 0.873015873015873, 0.873015873015873, 0.4603174603174603, 0.0, 0.7936507936507936,
+  1.8253968253968254, 0.4603174603174603, 1.3968253968253967, 1.1111111111111112, 1.1111111111111112, 1.3968253968253967, 0.4603174603174603, 1.8253968253968254,
+  0.8571428571428571, 0.873015873015873, 1.1111111111111112, 0.6984126984126984, 0.6984126984126984, 1.1111111111111112, 0.873015873015873, 0.8571428571428571,
+  0.8571428571428571, 0.873015873015873, 1.1111111111111112, 0.6984126984126984, 0.6984126984126984, 1.1111111111111112, 0.873015873015873, 0.8571428571428571,
+  1.8253968253968254, 0.4603174603174603, 1.3968253968253967, 1.1111111111111112, 1.1111111111111112, 1.3968253968253967, 0.4603174603174603, 1.8253968253968254,
+  0.7936507936507936, 0.0, 0.4603174603174603, 0.873015873015873, 0.873015873015873, 0.4603174603174603, 0.0, 0.7936507936507936,
+  2.0634920634920637, 0.7936507936507936, 1.8253968253968254, 0.8571428571428571, 0.8571428571428571, 1.8253968253968254, 0.7936507936507936, 2.0634920634920637,
 };
 
 float weight_weight = 0.5;
@@ -19,9 +19,9 @@ void print_board(int p[hw], int o[hw]) {
   for (int i = 0; i < hw; i++) {
     for (int j = hw - 1; j >= 0; j--) {
       if (1 & (p[i] >> j))
-        Serial.print(1);
+        Serial.print(0);
       else if (1 & (o[i] >> j))
-        Serial.print(2);
+        Serial.print(1);
       else
         Serial.print('.');
     }
@@ -32,7 +32,7 @@ void print_board(int p[hw], int o[hw]) {
 
 int check_mobility_line(int p, int o) {
   int p1 = p << 1;
-  return ~(p1 | o) & (p1 + o);
+  return (~(p1 | o)) & (p1 + o);
 }
 
 int reverse(int a) {
@@ -58,13 +58,13 @@ void check_mobility(const int* me, const int* op, int* mobility) {
     for (int j = 0; j < hw; j++) {
       p <<= 1;
       o <<= 1;
-      p |= 1 & (me[j] >> (hw - 1 - i));
-      o |= 1 & (op[j] >> (hw - 1 - i));
+      p |= 1 & (me[j] >> i);
+      o |= 1 & (op[j] >> i);
     }
     mobility_tmp = check_mobility_line(p, o);
     mobility_tmp |= reverse(check_mobility_line(reverse(p), reverse(o)));
     for (int j = 0; j < hw; j++)
-      mobility[j] |= (1 & (mobility_tmp >> (hw - 1 - j))) << (hw - 1 - i);
+      mobility[j] |= (1 & (mobility_tmp >> (hw - 1 - j))) << i;
   }
   for (int i = 2; i < hw * 2 - 2; i++) {
     p = 0;
@@ -72,21 +72,21 @@ void check_mobility(const int* me, const int* op, int* mobility) {
     for (int j = 0; j < hw; j++) {
       p <<= 1;
       o <<= 1;
-      if (hw - i + j < 0)
+      if (i - j < 0)
         continue;
-      if (hw - i + j >= hw)
+      if (i - j >= hw)
         continue;
-      p |= (1 & (me[hw - i + j] >> (hw - 1 - j)));
-      o |= (1 & (op[hw - i + j] >> (hw - 1 - j)));
+      p |= (1 & (me[j] >> (i - j)));
+      o |= (1 & (op[j] >> (i - j)));
     }
     mobility_tmp = check_mobility_line(p, o);
     mobility_tmp |= reverse(check_mobility_line(reverse(p), reverse(o)));
     for (int j = 0; j < hw; j++) {
-      if (hw - i + j < 0)
+      if (i - j < 0)
         continue;
-      if (hw - i + j >= hw)
+      if (i - j >= hw)
         continue;
-      mobility[hw - i + j] |= (1 & (mobility_tmp >> (hw - 1 - j))) << (hw - 1 - j);
+      mobility[j] |= (1 & (mobility_tmp >> (hw - 1 - j))) << (i - j);
     }
   }
   for (int i = 2; i < hw * 2 - 2; i++) {
@@ -95,22 +95,26 @@ void check_mobility(const int* me, const int* op, int* mobility) {
     for (int j = 0; j < hw; j++) {
       p <<= 1;
       o <<= 1;
-      if (hw - i + j < 0)
+      if (hw - 1 - i + j < 0)
         continue;
-      if (hw - i + j >= hw)
+      if (hw - 1 - i + j >= hw)
         continue;
-      p |= (1 & (me[j] >> (hw - i + j)));
-      o |= (1 & (op[j] >> (hw - i + j)));
+      p |= (1 & (me[j] >> (hw - 1 - i + j)));
+      o |= (1 & (op[j] >> (hw - 1 - i + j)));
     }
     mobility_tmp = check_mobility_line(p, o);
     mobility_tmp |= reverse(check_mobility_line(reverse(p), reverse(o)));
     for (int j = 0; j < hw; j++) {
-      if (hw - i + j < 0)
+      if (hw - 1 - i + j < 0)
         continue;
-      if (hw - i + j >= hw)
+      if (hw - 1 - i + j >= hw)
         continue;
-      mobility[hw - i + j] |= (1 & (mobility_tmp >> (hw - 1 - j))) << (hw - i + j);
+      mobility[j] |= (1 & (mobility_tmp >> (hw - 1 - j))) << (hw - 1 - i + j);
     }
+  }
+  for (int i = 0; i < hw; i++){
+    mobility[i] &= ~me[i];
+    mobility[i] &= ~op[i];
   }
 }
 
@@ -186,7 +190,7 @@ void move_board(const int* me, const int* op, const int* pt, int* me_res, int* o
           flag3 = true;
       if (flag3)
         for (int i = 0; i < hw; i++)
-          rev[i] = rev2[i];
+          rev[i] |= rev2[i];
       flag1 = false;
       flag2 = false;
       for (int i = 0; i < hw; i++) {
@@ -203,7 +207,7 @@ void move_board(const int* me, const int* op, const int* pt, int* me_res, int* o
   }
 }
 
-int pop_count(const int* x){
+int pop_count(const int* x) {
   int res = 0;
   for (int i = 0; i < hw; i++)
     for (int j = 0; j < hw; j++)
@@ -211,17 +215,17 @@ int pop_count(const int* x){
   return res;
 }
 
-float evaluate(const int* me, const int* op, int canput){
+float evaluate(const int* me, const int* op, int canput) {
   int me_cnt = 0, op_cnt = 0;
   float weight_me = 0, weight_op = 0;
   int mobility[hw];
   int canput_all = canput;
-  for (int i = 0; i < hw; i++){
-    for (int j = 0; j < hw; j++){
-      if (1 & (me[i] >> (hw - 1 - j))){
+  for (int i = 0; i < hw; i++) {
+    for (int j = 0; j < hw; j++) {
+      if (1 & (me[i] >> (hw - 1 - j))) {
         weight_me += weight[i];
         me_cnt++;
-      } else if (1 & (op[i] >> (hw - 1 - j))){
+      } else if (1 & (op[i] >> (hw - 1 - j))) {
         weight_op += weight[i];
         op_cnt++;
       }
@@ -235,14 +239,14 @@ float evaluate(const int* me, const int* op, int canput){
   return max(-0.999, min(0.999, weight_proc * weight_weight + canput_proc * canput_weight));
 }
 
-float end_game(const int* me, const int* op){
+float end_game(const int* me, const int* op) {
   return (float)(pop_count(me) - pop_count(op));
 }
 
-float nega_alpha(const int* me, const int* op, int depth, float alpha, float beta, int skip_cnt, int canput){
+float nega_alpha(const int* me, const int* op, int depth, float alpha, float beta, int skip_cnt, int canput) {
   if (skip_cnt == 2)
     return end_game(me, op);
-  else if(depth == 0)
+  else if (depth == 0)
     return evaluate(me, op, canput);
   int mobility[hw];
   check_mobility(me, op, mobility);
@@ -252,9 +256,9 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
-  for (int i = 0; i < hw; i++){
-    for (int j = 0; j < hw; j++){
-      if (1 & (mobility[i] >> j)){
+  for (int i = 0; i < hw; i++) {
+    for (int j = 0; j < hw; j++) {
+      if (1 & (mobility[i] >> j)) {
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
         v = -nega_alpha(n_op, n_me, depth - 1, -beta, -alpha, 0, n_canput);
@@ -270,55 +274,90 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   return val;
 }
 
+void ai(const int* me, const int* op, int* pt) {
+  //int dammy[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
+  int mobility[hw];
+  int rev[hw];
+  check_mobility(me, op, mobility);
+  int n_canput = pop_count(mobility);
+  int n_me[hw], n_op[hw];
+  float score, max_score = -65.0;
+  int y, x;
+  for (int i = 0; i < hw; i++)
+    pt[i] = 0;
+  for (int i = 0; i < hw; i++) {
+    for (int j = 0; j < hw; j++) {
+      if (1 & (mobility[i] >> j)) {
+        pt[i] |= 1 << j;
+        move_board(me, op, pt, n_me, n_op);
+        score = -nega_alpha(n_op, n_me, 2, -65.0, 65.0, 0, n_canput);
+        Serial.print((char)(hw - 1 - j + 'A'));
+        Serial.print(i + 1);
+        Serial.print(" ");
+        Serial.println(score);
+        //print_board(n_me, n_op);
+        if (max_score < score) {
+          y = i;
+          x = j;
+        }
+        pt[i] = 0;
+      }
+    }
+  }
+  Serial.print((char)(hw - 1 - x + 'A'));
+  Serial.println(y + 1);
+  pt[y] |= 1 << x;
+}
+
 void setup() {
   Serial.begin(115200);
-  int me[hw] = {
+  int black[hw] = {
     0b00000000,
     0b00000000,
     0b00000000,
+    0b00001000,
+    0b00010000,
     0b00000000,
+    0b00000000,
+    0b00000000
+  };
+  int white[hw] = {
+    0b00000000,
+    0b00000000,
+    0b00000000,
+    0b00010000,
     0b00001000,
     0b00000000,
     0b00000000,
     0b00000000
   };
-  int op[hw] = {
-    0b00000000,
-    0b00000000,
-    0b00010000,
-    0b00011000,
-    0b00010000,
-    0b00000000,
-    0b00000000,
-    0b00000000
-  };
-  int dammy[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
+  
+  int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
+  int skip_cnt = 0;
   int mobility[hw];
-  int rev[hw];
-  check_mobility(me, op, mobility);
-
-  int pt[hw] = {
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00000000
-  };
-  int n_me[hw], n_op[hw];
-  int n_canput = pop_count(mobility);
-  for (int i = 0; i < hw; i++){
-    for (int j = 0; j < hw; j++){
-      if (1 & (mobility[i] >> j)){
-        pt[i] |= 1 << j;
-        move_board(me, op, pt, n_me, n_op);
-        Serial.println(-nega_alpha(n_op, n_me, 4, -65.0, 65.0, 0, n_canput));
-        print_board(n_me, n_op);
-        pt[i] = 0;
-      }
+  int turn = 0;
+  print_board(black, white);
+  while (skip_cnt < 2) {
+    if (turn == 0)
+      check_mobility(black, white, mobility);
+    else
+      check_mobility(white, black, mobility);
+    if (pop_count(mobility))
+      skip_cnt = 0;
+    else {
+      skip_cnt++;
+      turn = 1 - turn;
+      continue;
     }
+    if (turn == 0) {
+      ai(black, white, pt);
+      move_board(black, white, pt, black, white);
+    } else {
+      ai(white, black, pt);
+      move_board(white, black, pt, white, black);
+    }
+    print_board(black, white);
+    turn = 1 - turn;
   }
   Serial.println("done");
 }
