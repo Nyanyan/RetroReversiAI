@@ -383,6 +383,10 @@ void auto_play() {
     print_board(black, white);
     turn = 1 - turn;
   }
+  Serial.print("black(0): ");
+  Serial.println(pop_count(black));
+  Serial.print("white(1): ");
+  Serial.println(pop_count(white));
 }
 
 void play() {
@@ -456,7 +460,7 @@ void play() {
 
 void setup() {
   Serial.begin(115200);
-  play();
+  auto_play();
   Serial.println("done");
 }
 
