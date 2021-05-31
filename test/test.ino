@@ -23,7 +23,7 @@ void print_board(int p[hw], int o[hw]) {
       else if (1 & (o[i] >> j))
         Serial.print(2);
       else
-        Serial.print(0);
+        Serial.print('.');
     }
     Serial.println("");
   }
@@ -132,7 +132,7 @@ void trans(const int* pt, const int k, int* res) {
       break;
     case 3:
       for (int i = 1; i < hw; i++)
-        res[i] = pt[i - 1] >> 2;
+        res[i] = pt[i - 1] >> 1;
       res[0] = 0;
       break;
     case 4:
@@ -151,7 +151,7 @@ void trans(const int* pt, const int k, int* res) {
       break;
     case 7:
       for (int i = 0; i < hw - 1; i++)
-        res[i] = pt[i + 1] >> 2;
+        res[i] = pt[i + 1] << 1;
       res[hw - 1] = 0;
       break;
   }
@@ -246,6 +246,28 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
     return evaluate(me, op, canput);
   int mobility[hw];
   check_mobility(me, op, mobility);
+  int n_canput = pop_count(mobility);
+  if (n_canput == 0)
+    return nega_alpha(op, me, depth, alpha, beta, skip_cnt + 1, 0);
+  int n_me[hw], n_op[hw];
+  int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
+  float val = -65.0, v;
+  for (int i = 0; i < hw; i++){
+    for (int j = 0; j < hw; j++){
+      if (1 & (mobility[i] >> j)){
+        pt[i] |= 1 << j;
+        move_board(me, op, pt, n_me, n_op);
+        v = -nega_alpha(n_op, n_me, depth - 1, -beta, -alpha, 0, n_canput);
+        if (beta <= v)
+          return v;
+        alpha = max(alpha, v);
+        if (val < v)
+          val = v;
+        pt[i] = 0;
+      }
+    }
+  }
+  return val;
 }
 
 void setup() {
@@ -255,7 +277,7 @@ void setup() {
     0b00000000,
     0b00000000,
     0b00000000,
-    0b00010000,
+    0b00001000,
     0b00000000,
     0b00000000,
     0b00000000
@@ -263,9 +285,9 @@ void setup() {
   int op[hw] = {
     0b00000000,
     0b00000000,
-    0b00001000,
+    0b00010000,
     0b00011000,
-    0b00001000,
+    0b00010000,
     0b00000000,
     0b00000000,
     0b00000000
@@ -292,7 +314,7 @@ void setup() {
       if (1 & (mobility[i] >> j)){
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
-        Serial.println(-evaluate(n_op, n_me, n_canput));
+        Serial.println(-nega_alpha(n_op, n_me, 4, -65.0, 65.0, 0, n_canput));
         print_board(n_me, n_op);
         pt[i] = 0;
       }
