@@ -4,7 +4,7 @@
 
 int received_val;
 bool waiting = false;
-float calculated_val = 0.0;
+int val1 = 0, val2 = 0;
 int me[hw], op[hw];
 int me_idx = 0, op_idx = 0;
 
@@ -318,15 +318,16 @@ void receive(int num) {
 
 void request() {
   Wire.write((int)waiting);
-  Wire.write((int)calculated_val);
-  Wire.write((int)((calculated_val - (int)calculated_val) * 100));
+  Wire.write(val1);
+  Wire.write(val2);
   //Serial.print(waiting);
   //Serial.print(" ");
   //Serial.println(calculated_val);
 }
 
 void setup() {
-  Wire.begin(8);
+  Wire.begin(9);
+  Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
   Wire.onReceive(receive);
@@ -341,7 +342,9 @@ void loop() {
     me_idx = 0;
     op_idx = 0;
     digitalWrite(13, HIGH);
-    calculated_val = nega_alpha(me, op, 2, -65.0, 65.0, 0, 0);
+    float calculated_val = nega_alpha(me, op, 2, -65.0, 65.0, 0, 0);
+    val1 = (int)calculated_val;
+    val2 = (int)((calculated_val - (float)(int)calculated_val) * 100);
     digitalWrite(13, LOW);
     waiting = true;
     //Serial.println(calculated_val);

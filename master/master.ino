@@ -630,6 +630,7 @@ void setup() {
   for (int i = 0; i < n_slaves; i++)
     busy[i] = false;
   Wire.begin();
+  Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
   Serial.begin(115200);
