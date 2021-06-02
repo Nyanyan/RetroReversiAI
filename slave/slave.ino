@@ -326,14 +326,16 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(10);
+  Wire.begin(8);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
+  pinMode(8, OUTPUT);
+  digitalWrite(8, LOW);
+  pinMode(5, OUTPUT);
   Wire.onReceive(receive);
   Wire.onRequest(request);
   Serial.begin(115200);
-  pinMode(13, OUTPUT);
   Serial.println("set up");
 }
 
@@ -341,11 +343,11 @@ void loop() {
   if (me_idx == hw && op_idx == hw) {
     me_idx = 0;
     op_idx = 0;
-    digitalWrite(13, HIGH);
+    digitalWrite(5, HIGH);
     float calculated_val = nega_alpha(me, op, 2, -65.0, 65.0, 0, 0);
     val1 = (int)calculated_val;
     val2 = (int)((calculated_val - (float)((int)calculated_val)) * 100.0);
-    digitalWrite(13, LOW);
+    digitalWrite(5, LOW);
     waiting = true;
     //Serial.println(calculated_val);
   }

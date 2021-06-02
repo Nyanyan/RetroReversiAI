@@ -1,9 +1,9 @@
 #include <Wire.h>
 
 #define hw 8
-#define n_slaves 3
+#define n_slaves 4
 
-const int slaves[n_slaves] = {8, 9, 10};
+const int slaves[n_slaves] = {8, 9, 10, 11};
 
 const float weight[hw][hw] = {
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35},
@@ -271,15 +271,20 @@ float nega_alpha(const int* me, const int* op, const int* depth, float alpha, fl
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
-  int n_vals = 0;
-  int val_idxes[32];
-  bool done[32];
   if (depth == 0) {
+    int n_vals = 0;
+    int val_idxes[32];
+    bool done[32];
     for (int i = 0; i < hw; i++) {
       for (int j = 0; j < hw; j++) {
         if (1 & (mobility[i] >> j)) {
           int use_slave = -1;
           while (use_slave == -1) {
+            for (int k = 0; k < n_slaves; k++)
+              if (!busy[k])
+                use_slave = k;
+            if (use_slave != -1)
+              break;
             for (int k = 0; k < n_vals; k++) {
               if (done[k])
                 continue;
@@ -318,9 +323,6 @@ float nega_alpha(const int* me, const int* op, const int* depth, float alpha, fl
                 Wire.read();
               }
             }
-            for (int k = 0; k < n_slaves; k++)
-              if (!busy[k])
-                use_slave = k;
           }
           pt[i] |= 1 << j;
           move_board(me, op, pt, n_me, n_op);
@@ -414,7 +416,8 @@ void ai(const int* me, const int* op, int* pt) {
       if (1 & (mobility[i] >> j)) {
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
-        score = -nega_alpha(n_op, n_me, 2, -65.0, 65.0, 0, n_canput);
+        score = -nega_alpha(n_op, n_me, 0, max_score, 65.0, 0, n_canput);
+        Serial.print(" ");
         Serial.print((char)(hw - 1 - j + 'a'));
         Serial.print(i + 1);
         Serial.print(" ");
@@ -558,6 +561,7 @@ void play() {
 }
 
 void setup() {
+  long strt = millis();
   for (int i = 0; i < n_slaves; i++)
     busy[i] = false;
   Wire.begin();
@@ -567,6 +571,7 @@ void setup() {
   Serial.begin(115200);
   auto_play();
   Serial.println("done");
+  Serial.println(millis() - strt);
 }
 
 void loop() {
