@@ -1,18 +1,25 @@
+#include <Wire.h>
+
 #define hw 8
+#define n_slaves 3
+
+const int slaves[n_slaves] = {8, 9, 10};
 
 const float weight[hw][hw] = {
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35},
-  {-0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
+  { -0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
   {2.6, -1.7, 1.25, 0.35, 0.35, 1.25, -1.7, 2.6},
-  {-0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
-  {-0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
+  { -0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
+  { -0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
   {2.6, -1.7, 1.25, 0.35, 0.35, 1.25, -1.7, 2.6},
-  {-0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
+  { -0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35}
 };
 
 float weight_weight = 0.5;
 float canput_weight = 0.5;
+
+bool busy[n_slaves];
 
 void print_board(const int* p, const int* o) {
   Serial.println("  a b c d e f g h ");
@@ -50,7 +57,7 @@ void print_board(const int* p, const int* o, const int* m) {
   }
 }
 
-bool inside(int y, int x){
+bool inside(int y, int x) {
   return 0 <= y && y < hw && 0 <= x && x < hw;
 }
 
@@ -239,39 +246,90 @@ int pop_count(const int* x) {
   return res;
 }
 
-float evaluate(const int* me, const int* op, int canput) {
-  int me_cnt = 0, op_cnt = 0;
-  float weight_me = 0, weight_op = 0;
-  int mobility[hw];
-  int canput_all = canput;
-  for (int i = 0; i < hw; i++) {
-    for (int j = 0; j < hw; j++) {
-      if (1 & (me[i] >> (hw - 1 - j))) {
-        weight_me += weight[i][j];
-        me_cnt++;
-      } else if (1 & (op[i] >> (hw - 1 - j))) {
-        weight_op += weight[i][j];
-        op_cnt++;
-      }
-    }
-  }
-  check_mobility(me, op, mobility);
-  canput_all += pop_count(mobility);
-  float weight_proc, canput_proc;
-  weight_proc = weight_me / me_cnt - weight_op / op_cnt;
-  canput_proc = (float)(canput_all - canput) / max(1, canput_all) - (float)canput / max(1, canput_all);
-  return max(-0.999, min(0.999, weight_proc * weight_weight + canput_proc * canput_weight));
-}
-
 float end_game(const int* me, const int* op) {
   return (float)(pop_count(me) - pop_count(op));
 }
 
-float nega_alpha(const int* me, const int* op, int depth, float alpha, float beta, int skip_cnt, int canput) {
+int send_slave(const int* me, const int* op, int i) {
+  Wire.beginTransmission(slaves[i]);
+  for (int j = 0; j < hw; j++)
+    Wire.write(me[j]);
+  for (int j = 0; j < hw; j++)
+    Wire.write(op[j]);
+  Wire.endTransmission();
+  busy[i] = true;
+}
+
+//-------メモリ使用状況表示-------------------------------------------------
+// ここから↓
+int aRamStart = 0x0100;                   // RAM先頭アドレス（固定値）
+int aGvalEnd;                             // グローバル変数領域末尾アドレス
+int aHeapEnd;                             // ヒープ領域末尾アドレス(次のヒープ用アドレス）
+int aSp;                                  // スタックポインタアドレス（次のスタック用アドレス）
+char aBuff[6];
+void printMem() {                         // RAM使用状況を表示
+  Serial.println();
+  Serial.println(F("RAM allocation table"));
+  Serial.println(F("usage   start          end           size"));
+
+  Serial.print(F("groval: "));            // 固定アドレス
+  printHexDecimal(aRamStart);             // 開始
+  Serial.print(F(" - "));
+  printHexDecimal(aGvalEnd);              // 終了
+  Serial.print("  ");
+  printHexDecimal(aGvalEnd - aRamStart + 1); // サイズ
+  Serial.println();
+
+  Serial.print(F("heap  : "));            // ヒープ
+  printHexDecimal(aGvalEnd + 1);          // 開始
+  Serial.print(F(" - "));
+  printHexDecimal(aHeapEnd - 1);          // 終了(aHeapEndは次のヒープ用のアドレスなので-1）
+  Serial.print(F("  "));
+  printHexDecimal(aHeapEnd - 1 - (aGvalEnd + 1) + 1); // サイズ
+  Serial.println();
+
+  Serial.print(F("free  : "));            // Free領域
+  printHexDecimal(aHeapEnd);              // 開始
+  Serial.print(F(" - "));
+  printHexDecimal(aSp);                   // 終了
+  Serial.print(F("  "));
+  printHexDecimal(aSp - aHeapEnd + 1);  // サイズ
+  Serial.println();
+
+  Serial.print(F("stack : "));            // スタック領域
+  printHexDecimal(aSp + 1);               // 開始（aSpは次のスタック用アドレスなので+1)
+  Serial.print(F(" - "));
+  printHexDecimal(RAMEND);                // 終了（RAMENDは0x8fffでシステム側で定義）
+  Serial.print(F("  "));
+  printHexDecimal(RAMEND - (aSp + 1) + 1);    // サイズ
+  Serial.println();
+  Serial.println();
+}
+
+void checkMem() {                         // RAM使用状況を記録
+  // 意味不明なところもあるが、そのまま使用
+  uint8_t *heapptr, *stackptr;
+  stackptr = (uint8_t *)malloc(4);        // とりあえず4バイト確保
+  heapptr = stackptr;                     // save value of heap pointer
+  free(stackptr);                         // 確保したメモリを返却
+  stackptr =  (uint8_t *)(SP);            // SPの値を保存（SPには次のスタック用の値が入っている）
+  aSp = (int)stackptr;                    // スタックポインタの値を記録
+  aHeapEnd = (int)heapptr;                // ヒープポインタの値を記録
+  aGvalEnd = (int)__malloc_heap_start - 1; // グローバル変数領域の末尾アドレスを記録
+}
+
+void printHexDecimal(int x) {             // 引数を16進と10進で表示 0xHHHH(dddd)
+  sprintf(aBuff, "%04X", x);              // 16進4桁に変換
+  Serial.print(F("0x")); Serial.print(aBuff);
+  Serial.print(F("("));
+  sprintf(aBuff, "%4d", x);               // 10進4桁に変換
+  Serial.print(aBuff); Serial.print(F(")"));
+}
+//　ここまで↑　コピペ
+
+float nega_alpha(const int* me, const int* op, const int* depth, float alpha, float beta, const int* skip_cnt, const int* canput) {
   if (skip_cnt == 2)
     return end_game(me, op);
-  else if (depth == 0)
-    return evaluate(me, op, canput);
   int mobility[hw];
   check_mobility(me, op, mobility);
   int n_canput = pop_count(mobility);
@@ -280,18 +338,129 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
-  for (int i = 0; i < hw; i++) {
-    for (int j = 0; j < hw; j++) {
-      if (1 & (mobility[i] >> j)) {
-        pt[i] |= 1 << j;
-        move_board(me, op, pt, n_me, n_op);
-        v = -nega_alpha(n_op, n_me, depth - 1, -beta, -alpha, 0, n_canput);
-        if (beta <= v)
-          return v;
-        alpha = max(alpha, v);
-        if (val < v)
-          val = v;
-        pt[i] = 0;
+  int n_vals = 0;
+  int val_idxes[32];
+  bool done[32];
+  if (depth == 0) {
+    for (int i = 0; i < hw; i++) {
+      for (int j = 0; j < hw; j++) {
+        if (1 & (mobility[i] >> j)) {
+          int use_slave = -1;
+          while (use_slave == -1) {
+            for (int k = 0; k < n_vals; k++) {
+              if (done[k])
+                continue;
+              if (!busy[val_idxes[k]])
+                continue;
+              Wire.requestFrom(slaves[val_idxes[k]], 3);
+              //checkMem();
+              //printMem();
+              if (Wire.read()) {
+                long raw_val = (long)(int)Wire.read() * 100 + (long)(int)Wire.read();
+                busy[val_idxes[k]] = false;
+                done[k] = true;
+                v = -(float)raw_val / 100.0;
+                if (beta <= v) {
+                  int cnt = 0;
+                  while (cnt < n_vals) {
+                    cnt = 0;
+                    for (int l = 0; l < n_vals; l++) {
+                      if (busy[val_idxes[l]]) {
+                        Wire.requestFrom(slaves[val_idxes[l]], 3);
+                        if (Wire.read()) {
+                          busy[val_idxes[l]] = false;
+                          ++cnt;
+                        }
+                        Wire.read();
+                        Wire.read();
+                      } else
+                        ++cnt;
+                    }
+                  }
+                  return v;
+                }
+                alpha = max(alpha, v);
+                if (val < v)
+                  val = v;
+              } else {
+                Wire.read();
+                Wire.read();
+              }
+            }
+            for (int k = 0; k < n_slaves; k++)
+              if (!busy[k])
+                use_slave = k;
+          }
+          pt[i] |= 1 << j;
+          move_board(me, op, pt, n_me, n_op);
+          pt[i] = 0;
+          send_slave(n_op, n_me, use_slave);
+          val_idxes[n_vals] = use_slave;
+          done[n_vals] = false;
+          Serial.print(use_slave);
+          //Serial.println(n_vals);
+          ++n_vals;
+        }
+      }
+    }
+    int cnt = 0;
+    while (cnt < n_vals) {
+      cnt = 0;
+      for (int k = 0; k < n_vals; k++) {
+        if (done[k]) {
+          ++cnt;
+          continue;
+        }
+        if (!busy[val_idxes[k]])
+          continue;
+        Wire.requestFrom(slaves[val_idxes[k]], 3);
+        if (Wire.read()) {
+          long raw_val = (long)(int)Wire.read() * 100 + (long)(int)Wire.read();
+          busy[val_idxes[k]] = false;
+          done[k] = true;
+          v = -(float)raw_val / 100.0;
+          if (beta <= v) {
+            int cnt = 0;
+            while (cnt < n_vals) {
+              cnt = 0;
+              for (int l = 0; l < n_vals; l++) {
+                if (busy[val_idxes[l]]) {
+                  Wire.requestFrom(slaves[val_idxes[l]], 3);
+                  if (Wire.read()) {
+                    busy[val_idxes[l]] = false;
+                    ++cnt;
+                  }
+                  Wire.read();
+                  Wire.read();
+                } else
+                  ++cnt;
+              }
+            }
+            return v;
+          }
+          alpha = max(alpha, v);
+          if (val < v)
+            val = v;
+        } else {
+          Wire.read();
+          Wire.read();
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < hw; i++) {
+      for (int j = 0; j < hw; j++) {
+        if (1 & (mobility[i] >> j)) {
+          pt[i] |= 1 << j;
+          move_board(me, op, pt, n_me, n_op);
+          pt[i] = 0;
+          v = -nega_alpha(n_op, n_me, depth - 1, -beta, -alpha, 0, n_canput);
+          if (beta <= v)
+            return v;
+          alpha = max(alpha, v);
+          if (val < v)
+            val = v;
+        }
       }
     }
   }
@@ -458,6 +627,11 @@ void play() {
 }
 
 void setup() {
+  for (int i = 0; i < n_slaves; i++)
+    busy[i] = false;
+  Wire.begin();
+  pinMode(SDA, INPUT);
+  pinMode(SCL, INPUT);
   Serial.begin(115200);
   auto_play();
   Serial.println("done");

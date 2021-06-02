@@ -1,13 +1,21 @@
+#include <Wire.h>
+
 #define hw 8
+
+int received_val;
+bool waiting = false;
+float calculated_val = 0.0;
+int me[hw], op[hw];
+int me_idx = 0, op_idx = 0;
 
 const float weight[hw][hw] = {
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35},
-  {-0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
+  { -0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
   {2.6, -1.7, 1.25, 0.35, 0.35, 1.25, -1.7, 2.6},
-  {-0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
-  {-0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
+  { -0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
+  { -0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
   {2.6, -1.7, 1.25, 0.35, 0.35, 1.25, -1.7, 2.6},
-  {-0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
+  { -0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35}
 };
 
@@ -50,7 +58,7 @@ void print_board(const int* p, const int* o, const int* m) {
   }
 }
 
-bool inside(int y, int x){
+bool inside(int y, int x) {
   return 0 <= y && y < hw && 0 <= x && x < hw;
 }
 
@@ -298,171 +306,44 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   return val;
 }
 
-void ai(const int* me, const int* op, int* pt) {
-  //int dammy[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
-  int mobility[hw];
-  int rev[hw];
-  check_mobility(me, op, mobility);
-  int n_canput = pop_count(mobility);
-  int n_me[hw], n_op[hw];
-  float score, max_score = -65.0;
-  int y, x;
-  for (int i = 0; i < hw; i++)
-    pt[i] = 0;
-  for (int i = 0; i < hw; i++) {
-    for (int j = 0; j < hw; j++) {
-      if (1 & (mobility[i] >> j)) {
-        pt[i] |= 1 << j;
-        move_board(me, op, pt, n_me, n_op);
-        score = -nega_alpha(n_op, n_me, 2, -65.0, 65.0, 0, n_canput);
-        Serial.print((char)(hw - 1 - j + 'a'));
-        Serial.print(i + 1);
-        Serial.print(" ");
-        Serial.println(score);
-        //print_board(n_me, n_op);
-        if (max_score < score) {
-          max_score = score;
-          y = i;
-          x = j;
-        }
-        pt[i] = 0;
-      }
-    }
+void receive(int num) {
+  waiting = false;
+  while (Wire.available()) {
+    if (me_idx < hw)
+      me[me_idx++] = Wire.read();
+    else if (op_idx < hw)
+      op[op_idx++] = Wire.read();
   }
-  Serial.print((char)(hw - 1 - x + 'a'));
-  Serial.println(y + 1);
-  pt[y] |= 1 << x;
 }
 
-void auto_play() {
-  int black[hw] = {
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00001000,
-    0b00010000,
-    0b00000000,
-    0b00000000,
-    0b00000000
-  };
-  int white[hw] = {
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00010000,
-    0b00001000,
-    0b00000000,
-    0b00000000,
-    0b00000000
-  };
-  int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
-  int skip_cnt = 0;
-  int mobility[hw];
-  int turn = 0;
-  print_board(black, white);
-  while (skip_cnt < 2) {
-    if (turn == 0)
-      check_mobility(black, white, mobility);
-    else
-      check_mobility(white, black, mobility);
-    if (pop_count(mobility))
-      skip_cnt = 0;
-    else {
-      skip_cnt++;
-      turn = 1 - turn;
-      continue;
-    }
-    if (turn == 0) {
-      ai(black, white, pt);
-      move_board(black, white, pt, black, white);
-    } else {
-      ai(white, black, pt);
-      move_board(white, black, pt, white, black);
-    }
-    print_board(black, white);
-    turn = 1 - turn;
-  }
-  Serial.print("black(0): ");
-  Serial.println(pop_count(black));
-  Serial.print("white(1): ");
-  Serial.println(pop_count(white));
-}
-
-void play() {
-  int black[hw] = {
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00001000,
-    0b00010000,
-    0b00000000,
-    0b00000000,
-    0b00000000
-  };
-  int white[hw] = {
-    0b00000000,
-    0b00000000,
-    0b00000000,
-    0b00010000,
-    0b00001000,
-    0b00000000,
-    0b00000000,
-    0b00000000
-  };
-  int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
-  int skip_cnt = 0;
-  int mobility[hw];
-  int turn = 0;
-  int y, x;
-  while (skip_cnt < 2) {
-    if (turn == 0)
-      check_mobility(black, white, mobility);
-    else
-      check_mobility(white, black, mobility);
-    print_board(black, white, mobility);
-    if (pop_count(mobility))
-      skip_cnt = 0;
-    else {
-      Serial.println("Skip!");
-      skip_cnt++;
-      turn = 1 - turn;
-      continue;
-    }
-    if (turn == 0) {
-      y = -1;
-      x = 0;
-      while (!(inside(y, x) && mobility[y] & (1 << (hw - 1 - x)))) {
-        Serial.println("input a move");
-        while (!Serial.available());
-        x = (int)(Serial.read() - 'a');
-        while (!Serial.available());
-        y = (int)(Serial.read() - '1');
-        Serial.print((char)(x + 'a'));
-        Serial.println(y + 1);
-      }
-      for (int i = 0; i < hw; i++)
-        pt[i] = 0;
-      pt[y] |= 1 << (hw - 1 - x);
-      move_board(black, white, pt, black, white);
-    } else {
-      ai(white, black, pt);
-      move_board(white, black, pt, white, black);
-    }
-    turn = 1 - turn;
-  }
-  print_board(black, white);
-  Serial.print("black(0): ");
-  Serial.println(pop_count(black));
-  Serial.print("white(1): ");
-  Serial.println(pop_count(white));
+void request() {
+  Wire.write((int)waiting);
+  Wire.write((int)calculated_val);
+  Wire.write((int)((calculated_val - (int)calculated_val) * 100));
+  //Serial.print(waiting);
+  //Serial.print(" ");
+  //Serial.println(calculated_val);
 }
 
 void setup() {
+  Wire.begin(8);
+  pinMode(SDA, INPUT);
+  pinMode(SCL, INPUT);
+  Wire.onReceive(receive);
+  Wire.onRequest(request);
   Serial.begin(115200);
-  auto_play();
-  Serial.println("done");
+  pinMode(13, OUTPUT);
+  Serial.println("set up");
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  if (me_idx == hw && op_idx == hw) {
+    me_idx = 0;
+    op_idx = 0;
+    digitalWrite(13, HIGH);
+    calculated_val = nega_alpha(me, op, 2, -65.0, 65.0, 0, 0);
+    digitalWrite(13, LOW);
+    waiting = true;
+    //Serial.println(calculated_val);
+  }
 }
