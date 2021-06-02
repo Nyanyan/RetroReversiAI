@@ -356,10 +356,9 @@ float nega_alpha(const int* me, const int* op, const int* depth, float alpha, fl
               //checkMem();
               //printMem();
               if (Wire.read()) {
-                long raw_val = (long)(int)Wire.read() * 100 + (long)(int)Wire.read();
+                v = -(float)Wire.read() - (float)Wire.read() * 0.01;
                 busy[val_idxes[k]] = false;
                 done[k] = true;
-                v = -(float)raw_val / 100.0;
                 if (beta <= v) {
                   int cnt = 0;
                   while (cnt < n_vals) {
@@ -415,10 +414,13 @@ float nega_alpha(const int* me, const int* op, const int* depth, float alpha, fl
           continue;
         Wire.requestFrom(slaves[val_idxes[k]], 3);
         if (Wire.read()) {
-          long raw_val = (long)(int)Wire.read() * 100 + (long)(int)Wire.read();
+          int8_t tmp1 = Wire.read(), tmp2 = Wire.read();
+          //Serial.print(tmp1);
+          //Serial.print(" ");
+          //Serial.println(tmp2);
+          v = -(float)tmp1 - (float)tmp2 * 0.01;
           busy[val_idxes[k]] = false;
           done[k] = true;
-          v = -(float)raw_val / 100.0;
           if (beta <= v) {
             int cnt = 0;
             while (cnt < n_vals) {

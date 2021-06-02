@@ -326,7 +326,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(9);
+  Wire.begin(10);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
@@ -344,7 +344,7 @@ void loop() {
     digitalWrite(13, HIGH);
     float calculated_val = nega_alpha(me, op, 2, -65.0, 65.0, 0, 0);
     val1 = (int)calculated_val;
-    val2 = (int)((calculated_val - (float)(int)calculated_val) * 100);
+    val2 = (int)((calculated_val - (float)((int)calculated_val)) * 100.0);
     digitalWrite(13, LOW);
     waiting = true;
     //Serial.println(calculated_val);
