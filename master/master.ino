@@ -1,9 +1,11 @@
 #include <Wire.h>
 
 #define hw 8
-#define n_slaves 4
+#define n_slaves 8
+#define slave_depth 1
+#define max_depth 4
 
-const int slaves[n_slaves] = {8, 9, 10, 11};
+const int slaves[n_slaves] = {8, 9, 10, 11, 12, 13, 14, 15};
 
 const float weight[hw][hw] = {
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35},
@@ -246,23 +248,53 @@ int pop_count(const int* x) {
   return res;
 }
 
+float evaluate(const int* me, const int* op, int canput) {
+  int me_cnt = 0, op_cnt = 0;
+  float weight_me = 0, weight_op = 0;
+  int mobility[hw];
+  int canput_all = canput;
+  for (int i = 0; i < hw; i++) {
+    for (int j = 0; j < hw; j++) {
+      if (1 & (me[i] >> (hw - 1 - j))) {
+        weight_me += weight[i][j];
+        me_cnt++;
+      } else if (1 & (op[i] >> (hw - 1 - j))) {
+        weight_op += weight[i][j];
+        op_cnt++;
+      }
+    }
+  }
+  check_mobility(me, op, mobility);
+  canput_all += pop_count(mobility);
+  float weight_proc, canput_proc;
+  weight_proc = weight_me / me_cnt - weight_op / op_cnt;
+  canput_proc = (float)(canput_all - canput) / max(1, canput_all) - (float)canput / max(1, canput_all);
+  return max(-0.999, min(0.999, weight_proc * weight_weight + canput_proc * canput_weight));
+}
+
 float end_game(const int* me, const int* op) {
   return (float)(pop_count(me) - pop_count(op));
 }
 
-int send_slave(const int* me, const int* op, int i) {
+int send_slave(const int* me, const int* op, float alpha, float beta, int i) {
   Wire.beginTransmission(slaves[i]);
   for (int j = 0; j < hw; j++)
     Wire.write(me[j]);
   for (int j = 0; j < hw; j++)
     Wire.write(op[j]);
+  Wire.write((int)alpha);
+  Wire.write((int)((alpha - (float)((int)alpha)) * 100.0));
+  Wire.write((int)beta);
+  Wire.write((int)((beta - (float)((int)beta)) * 100.0));
   Wire.endTransmission();
   busy[i] = true;
 }
 
-float nega_alpha(const int* me, const int* op, const int* depth, float alpha, float beta, const int* skip_cnt, const int* canput) {
+float nega_alpha(const int* me, const int* op, int depth, float alpha, float beta, int skip_cnt, int canput) {
   if (skip_cnt == 2)
     return end_game(me, op);
+  else if (depth == -slave_depth)
+    return evaluate(me, op, canput);
   int mobility[hw];
   check_mobility(me, op, mobility);
   int n_canput = pop_count(mobility);
@@ -271,7 +303,7 @@ float nega_alpha(const int* me, const int* op, const int* depth, float alpha, fl
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
-  if (depth == 0) {
+  if (depth == 0 && n_canput >= 2) {
     int n_vals = 0;
     int val_idxes[32];
     bool done[32];
@@ -324,18 +356,20 @@ float nega_alpha(const int* me, const int* op, const int* depth, float alpha, fl
               }
             }
           }
-          pt[i] |= 1 << j;
+          pt[i] = 1 << j;
           move_board(me, op, pt, n_me, n_op);
           pt[i] = 0;
-          send_slave(n_op, n_me, use_slave);
+          send_slave(n_op, n_me, -beta, -alpha, use_slave);
           val_idxes[n_vals] = use_slave;
           done[n_vals] = false;
-          Serial.print(use_slave);
+          //Serial.print(use_slave);
           //Serial.println(n_vals);
           ++n_vals;
         }
       }
     }
+    //Serial.print(n_vals);
+    //Serial.print(" ");
     int cnt = 0;
     while (cnt < n_vals) {
       cnt = 0;
@@ -416,8 +450,8 @@ void ai(const int* me, const int* op, int* pt) {
       if (1 & (mobility[i] >> j)) {
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
-        score = -nega_alpha(n_op, n_me, 0, max_score, 65.0, 0, n_canput);
-        Serial.print(" ");
+        score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, max_score, 65.0, 0, n_canput);
+        //Serial.print(" ");
         Serial.print((char)(hw - 1 - j + 'a'));
         Serial.print(i + 1);
         Serial.print(" ");
@@ -462,6 +496,7 @@ void auto_play() {
   int skip_cnt = 0;
   int mobility[hw];
   int turn = 0;
+  int stones = 5;
   print_board(black, white);
   while (skip_cnt < 2) {
     if (turn == 0)
@@ -482,7 +517,9 @@ void auto_play() {
       ai(white, black, pt);
       move_board(white, black, pt, white, black);
     }
+    Serial.println(stones);
     print_board(black, white);
+    ++stones;
     turn = 1 - turn;
   }
   Serial.print("black(0): ");
@@ -517,12 +554,12 @@ void play() {
   int mobility[hw];
   int turn = 0;
   int y, x;
+  int stones = 5;
   while (skip_cnt < 2) {
     if (turn == 0)
       check_mobility(black, white, mobility);
     else
       check_mobility(white, black, mobility);
-    print_board(black, white, mobility);
     if (pop_count(mobility))
       skip_cnt = 0;
     else {
@@ -531,6 +568,8 @@ void play() {
       turn = 1 - turn;
       continue;
     }
+    Serial.println(stones);
+    print_board(black, white, mobility);
     if (turn == 0) {
       y = -1;
       x = 0;
@@ -551,6 +590,7 @@ void play() {
       ai(white, black, pt);
       move_board(white, black, pt, white, black);
     }
+    ++stones;
     turn = 1 - turn;
   }
   print_board(black, white);

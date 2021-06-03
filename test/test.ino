@@ -2,12 +2,12 @@
 
 const float weight[hw][hw] = {
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35},
-  {-0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
+  { -0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
   {2.6, -1.7, 1.25, 0.35, 0.35, 1.25, -1.7, 2.6},
-  {-0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
-  {-0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
+  { -0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
+  { -0.45, -0.4, 0.35, -0.95, -0.95, 0.35, -0.4, -0.45},
   {2.6, -1.7, 1.25, 0.35, 0.35, 1.25, -1.7, 2.6},
-  {-0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
+  { -0.65, -3.15, -1.7, -0.4, -0.4, -1.7, -3.15, -0.65},
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35}
 };
 
@@ -50,7 +50,7 @@ void print_board(const int* p, const int* o, const int* m) {
   }
 }
 
-bool inside(int y, int x){
+bool inside(int y, int x) {
   return 0 <= y && y < hw && 0 <= x && x < hw;
 }
 
@@ -314,7 +314,7 @@ void ai(const int* me, const int* op, int* pt) {
       if (1 & (mobility[i] >> j)) {
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
-        score = -nega_alpha(n_op, n_me, 2, -65.0, 65.0, 0, n_canput);
+        score = -nega_alpha(n_op, n_me, 3, max_score, 65.0, 0, n_canput);
         Serial.print((char)(hw - 1 - j + 'a'));
         Serial.print(i + 1);
         Serial.print(" ");
@@ -359,6 +359,7 @@ void auto_play() {
   int skip_cnt = 0;
   int mobility[hw];
   int turn = 0;
+  int stones = 5;
   print_board(black, white);
   while (skip_cnt < 2) {
     if (turn == 0)
@@ -379,7 +380,9 @@ void auto_play() {
       ai(white, black, pt);
       move_board(white, black, pt, white, black);
     }
+    Serial.println(stones);
     print_board(black, white);
+    ++stones;
     turn = 1 - turn;
   }
   Serial.print("black(0): ");
@@ -414,12 +417,12 @@ void play() {
   int mobility[hw];
   int turn = 0;
   int y, x;
+  int stones = 5;
   while (skip_cnt < 2) {
     if (turn == 0)
       check_mobility(black, white, mobility);
     else
       check_mobility(white, black, mobility);
-    print_board(black, white, mobility);
     if (pop_count(mobility))
       skip_cnt = 0;
     else {
@@ -428,6 +431,8 @@ void play() {
       turn = 1 - turn;
       continue;
     }
+    Serial.println(stones);
+    print_board(black, white, mobility);
     if (turn == 0) {
       y = -1;
       x = 0;
@@ -448,6 +453,7 @@ void play() {
       ai(white, black, pt);
       move_board(white, black, pt, white, black);
     }
+    ++stones;
     turn = 1 - turn;
   }
   print_board(black, white);
@@ -459,8 +465,10 @@ void play() {
 
 void setup() {
   Serial.begin(115200);
+  long strt = millis();
   auto_play();
   Serial.println("done");
+  Serial.println(millis() - strt);
 }
 
 void loop() {

@@ -1,12 +1,14 @@
 #include <Wire.h>
 
 #define hw 8
+#define slave_depth 1
 
 int received_val;
 bool waiting = false;
 int val1 = 0, val2 = 0;
 int me[hw], op[hw];
 int me_idx = 0, op_idx = 0;
+float in_alpha, in_beta;
 
 const float weight[hw][hw] = {
   {3.35, -0.65, 2.6, -0.45, -0.45, 2.6, -0.65, 3.35},
@@ -313,6 +315,16 @@ void receive(int num) {
       me[me_idx++] = Wire.read();
     else if (op_idx < hw)
       op[op_idx++] = Wire.read();
+    else {
+      int8_t tmp1, tmp2;
+      tmp1 = Wire.read();
+      tmp2 = Wire.read();
+      in_alpha = (float)tmp1 + (float)tmp2 * 0.01;
+      tmp1 = Wire.read();
+      tmp2 = Wire.read();
+      in_beta = (float)tmp1 + (float)tmp2 * 0.01;
+
+    }
   }
 }
 
@@ -326,7 +338,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(8);
+  Wire.begin(15);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
@@ -344,7 +356,10 @@ void loop() {
     me_idx = 0;
     op_idx = 0;
     digitalWrite(5, HIGH);
-    float calculated_val = nega_alpha(me, op, 2, -65.0, 65.0, 0, 0);
+    //Serial.print(in_alpha);
+    //Serial.print(" ");
+    //Serial.println(in_beta);
+    float calculated_val = nega_alpha(me, op, slave_depth, in_alpha, in_beta, 0, 0);
     val1 = (int)calculated_val;
     val2 = (int)((calculated_val - (float)((int)calculated_val)) * 100.0);
     digitalWrite(5, LOW);
