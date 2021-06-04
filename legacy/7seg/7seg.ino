@@ -14,4 +14,6 @@ void loop() {
     delay(500);
     display.showNumberDecEx(5678,0x00,true);
     delay(500);
+    display.showNumberDecEx(8888,0x00,true);
+    delay(500);
 }
