@@ -293,8 +293,10 @@ int send_slave(const int* me, const int* op, float alpha, float beta, int i) {
 float nega_alpha(const int* me, const int* op, int depth, float alpha, float beta, int skip_cnt, int canput) {
   if (skip_cnt == 2)
     return end_game(me, op);
-  else if (depth == -slave_depth)
+  /*
+    else if (depth == -slave_depth)
     return evaluate(me, op, canput);
+  */
   int mobility[hw];
   check_mobility(me, op, mobility);
   int n_canput = pop_count(mobility);
@@ -303,7 +305,7 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
-  if (depth == 0 && n_canput >= 2) {
+  if (depth == 0) { //  && n_canput >= 2
     int n_vals = 0;
     int val_idxes[32];
     bool done[32];
@@ -452,10 +454,12 @@ void ai(const int* me, const int* op, int* pt) {
         move_board(me, op, pt, n_me, n_op);
         score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, max_score, 65.0, 0, n_canput);
         //Serial.print(" ");
-        Serial.print((char)(hw - 1 - j + 'a'));
-        Serial.print(i + 1);
-        Serial.print(" ");
-        Serial.println(score);
+        /*
+          Serial.print((char)(hw - 1 - j + 'a'));
+          Serial.print(i + 1);
+          Serial.print(" ");
+          Serial.println(score);
+        */
         //print_board(n_me, n_op);
         if (max_score < score) {
           max_score = score;
@@ -466,8 +470,8 @@ void ai(const int* me, const int* op, int* pt) {
       }
     }
   }
-  Serial.print((char)(hw - 1 - x + 'a'));
-  Serial.println(y + 1);
+  //Serial.print((char)(hw - 1 - x + 'a'));
+  //Serial.println(y + 1);
   pt[y] |= 1 << x;
 }
 
@@ -601,19 +605,44 @@ void play() {
 }
 
 void setup() {
-  long strt = millis();
+  //long strt = millis();
   for (int i = 0; i < n_slaves; i++)
     busy[i] = false;
   Wire.begin();
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
-  Serial.begin(115200);
-  auto_play();
-  Serial.println("done");
-  Serial.println(millis() - strt);
+  pinMode(13, OUTPUT);
+  Serial.begin(9600);
+  //auto_play();
+  //Serial.println("done");
+  //Serial.println(millis() - strt);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  if (Serial.available() >= hw * 2) {
+    while (Serial.available() > hw * 2)
+      Serial.read();
+    bool flag = true;
+    for (int i = 0; i < hw * 2; i++) {
+      if ((byte)Serial.read()) {
+        flag = false;
+        break;
+      }
+    }
+    if (flag) {
+      int pt[hw], me[hw], op[hw];
+      Serial.write(0);
+      while (Serial.available() < hw * 2);
+      for (int i = 0; i < hw; i++)
+        me[i] = (int)Serial.read();
+      for (int i = 0; i < hw; i++)
+        op[i] = (int)Serial.read();
+      digitalWrite(13, HIGH);
+      ai(me, op, pt);
+      digitalWrite(13, LOW);
+      for (int i = 0; i < hw; i++)
+        Serial.write((int)pt[i]);
+    }
+  }
 }
