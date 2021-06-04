@@ -2,18 +2,23 @@
 #include <TM1637Display.h>
 #include <SoftwareSerial.h>
 
-#define CLK 2
-#define DIO 3
+#define STRENGTH A3
+
+#define CLK 5
+#define DIO 6
 TM1637Display display(CLK, DIO);
 
-#define DATAPIN1 4
-#define LATCHPIN1 6
-#define CLOCKPIN1 7
+#define DATAPIN1 2
+#define LATCHPIN1 3
+#define CLOCKPIN1 4
 #define DATAPIN2 9
 #define LATCHPIN2 10
 #define CLOCKPIN2 11
 
-SoftwareSerial button(10, 11); // RX, TX
+#define RED 7
+#define GREEN 8
+
+SoftwareSerial button(12, 13); // RX, TX
 
 #define hw 8
 #define hw2 64
@@ -479,13 +484,17 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
 }
 
 void ai(const int* me, const int* op, int* pt) {
+  digitalWrite(5, HIGH);
   //int dammy[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   int mobility[hw];
   int rev[hw];
   check_mobility(me, op, mobility);
   int n_canput = pop_count(mobility);
+  float scores[32];
+  int yx[32][2];
+  int idx = 0;
   int n_me[hw], n_op[hw];
-  float score, max_score = -65.0;
+  float score;
   int y, x;
   for (int i = 0; i < hw; i++)
     pt[i] = 0;
@@ -494,7 +503,7 @@ void ai(const int* me, const int* op, int* pt) {
       if (1 & (mobility[i] >> j)) {
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
-        score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, max_score, 65.0, 0, n_canput);
+        score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, -65.0, 65.0, 0, n_canput);
         //Serial.print(" ");
         /*
           Serial.print((char)(hw - 1 - j + 'a'));
@@ -503,18 +512,52 @@ void ai(const int* me, const int* op, int* pt) {
           Serial.println(score);
         */
         //print_board(n_me, n_op);
-        if (max_score < score) {
+        scores[idx] = score;
+        yx[idx][0] = i;
+        yx[idx][1] = j;
+        idx++;
+        /*
+          if (max_score < score) {
           max_score = score;
           y = i;
           x = j;
-        }
+          }
+        */
         pt[i] = 0;
       }
     }
   }
   //Serial.print((char)(hw - 1 - x + 'a'));
   //Serial.println(y + 1);
+  //pt[y] |= 1 << x;
+  int use_idx = max(0, min(n_canput - 1, n_canput * (analogRead(STRENGTH) - 512) / 512));
+  Serial.print("adopt idx ");
+  Serial.print(n_canput);
+  Serial.print(" ");
+  Serial.println(use_idx);
+  bool used[32];
+  for (int i = 0; i < n_canput; i++)
+    used[i] = false;
+  float max_val;
+  int max_idx;
+  for (int i = 0; i <= use_idx; i++) {
+    max_val = -65.0;
+    max_idx = -1;
+    for (int j = 0; j < n_canput; j++) {
+      if (used[j])
+        continue;
+      if (max_val < scores[j]){
+        max_val = scores[j];
+        max_idx = j;
+        y = yx[j][0];
+        x = yx[j][1];
+      }
+    }
+    used[max_idx] = true;
+  }
+  Serial.println(max_val);
   pt[y] |= 1 << x;
+  digitalWrite(5, LOW);
 }
 
 void auto_play() {
@@ -575,6 +618,7 @@ void auto_play() {
 }
 
 void play() {
+  // black: red white: green
   int black[hw] = {
     0b00000000,
     0b00000000,
@@ -617,6 +661,7 @@ void play() {
     Serial.println(stones);
     print_board(black, white, mobility);
     if (turn == 0) {
+      digitalWrite(RED, HIGH);
       y = -1;
       x = 0;
       while (!(inside(y, x) && mobility[y] & (1 << (hw - 1 - x)))) {
@@ -632,9 +677,12 @@ void play() {
         pt[i] = 0;
       pt[y] |= 1 << (hw - 1 - x);
       move_board(black, white, pt, black, white);
+      digitalWrite(RED, LOW);
     } else {
+      digitalWrite(GREEN, HIGH);
       ai(white, black, pt);
       move_board(white, black, pt, white, black);
+      digitalWrite(GREEN, LOW);
     }
     ++stones;
     turn = 1 - turn;
@@ -647,50 +695,27 @@ void play() {
 }
 
 void setup() {
-  //long strt = millis();
   for (int i = 0; i < n_slaves; i++)
     busy[i] = false;
   Wire.begin();
   Wire.setClock(400000);
-  Serial.begin(9600);
+  Serial.begin(115200);
   button.begin(9600);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
-  pinMode(8, OUTPUT);
-  digitalWrite(8, LOW);
-  pinMode(5, OUTPUT);
+  pinMode(RED, OUTPUT);
+  pinMode(GREEN, OUTPUT);
   pinMode(DATAPIN1, OUTPUT);
   pinMode(LATCHPIN1, OUTPUT);
   pinMode(CLOCKPIN1, OUTPUT);
   pinMode(DATAPIN2, OUTPUT);
   pinMode(LATCHPIN2, OUTPUT);
   pinMode(CLOCKPIN2, OUTPUT);
+  pinMode(STRENGTH, INPUT);
   display.setBrightness(0x0f);
+  Serial.println("set up");
   play();
-  //Serial.println("done");
-  //Serial.println(millis() - strt);
 }
 
 void loop() {
-  int zero_cnt = 0;
-  while (zero_cnt < hw * 4) {
-    if (Serial.available()) {
-      if ((byte)Serial.read())
-        zero_cnt = 0;
-      else
-        zero_cnt++;
-    }
-  }
-  int pt[hw], me[hw], op[hw];
-  for (int i = 0; i < hw; i++)
-    me[i] = (int)Serial.read();
-  for (int i = 0; i < hw; i++)
-    op[i] = (int)Serial.read();
-  digitalWrite(5, HIGH);
-  ai(me, op, pt);
-  digitalWrite(5, LOW);
-  for (int i = 0; i < hw * 2; i++)
-    Serial.write((byte)0);
-  for (int i = 0; i < hw; i++)
-    Serial.print(pt[i]);
 }
