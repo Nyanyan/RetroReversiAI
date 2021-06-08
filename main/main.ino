@@ -4,9 +4,9 @@
 
 #define STRENGTH A3
 
-#define CLK 5
-#define DIO 6
-TM1637Display display(CLK, DIO);
+#define lCLK 5
+#define lDIO 6
+TM1637Display display(lCLK, lDIO);
 
 #define DATAPIN1 2
 #define LATCHPIN1 3
@@ -87,6 +87,22 @@ void print_board(const int* p, const int* o, const int* m) {
     }
     Serial.println("");
   }
+  uint64_t pp, oo;
+  for (int i = 0; i < hw; i++){
+    pp <<= hw;
+    pp |= p[i] | m[i];
+  }
+  for (int i = 0; i < hw; i++){
+    for (int j = 0; j < hw; j++){
+      oo <<= 1;
+      oo |= 1 & (o[hw - 1 - i] >> (hw - 1 - j));
+      oo |= 1 & (m[hw - 1 - i] >> (hw - 1 - j));
+    }
+  }
+  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, pp);
+  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
+  int num = pop_count(p) * 100 + pop_count(o);
+  display.showNumberDecEx(num,0x40,true);
 }
 
 void print_board(const int* p, const int* o) {
@@ -484,7 +500,6 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
 }
 
 void ai(const int* me, const int* op, int* pt) {
-  digitalWrite(5, HIGH);
   //int dammy[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   int mobility[hw];
   int rev[hw];
@@ -557,7 +572,6 @@ void ai(const int* me, const int* op, int* pt) {
   }
   Serial.println(max_val);
   pt[y] |= 1 << x;
-  digitalWrite(5, LOW);
 }
 
 void auto_play() {
