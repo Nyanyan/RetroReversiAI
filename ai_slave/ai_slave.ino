@@ -338,7 +338,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(15);
+  Wire.begin(9);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);

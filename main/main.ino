@@ -26,6 +26,28 @@ SoftwareSerial button(12, 13); // RX, TX
 #define slave_depth 1
 #define max_depth 4
 
+const int led_arr_g[64] = {
+  62, 61, 60, 59, 58, 57, 56, 63,
+  54, 53, 52, 51, 50, 49, 48, 55,
+  46, 45, 44, 43, 42, 41, 40, 47,
+  38, 37, 36, 35, 34, 33, 32, 39,
+  30, 29, 28, 27, 26, 25, 24, 31,
+  22, 21, 20, 19, 18, 17, 16, 23,
+  14, 13, 12, 11, 10, 9, 8, 15,
+  6, 5, 4, 3, 2, 1, 0, 7
+};
+
+const int led_arr_r[64] = {
+  47, 40, 41, 42, 43, 44, 45, 46,
+  55, 48, 49, 50, 51, 52, 53, 54,
+  63, 56, 57, 58, 59, 60, 61, 62,
+  23, 16, 17, 18, 19, 20, 21, 22,
+  31, 24, 25, 26, 27, 28, 29, 30,
+  39, 32, 33, 34, 35, 36, 37, 38,
+  7, 0, 1, 2, 3, 4, 5, 6,
+  15, 8, 9, 10, 11, 12, 13, 14
+};
+
 const int slaves[n_slaves] = {8, 9, 10, 11, 12, 13, 14, 15};
 
 const float weight[hw][hw] = {
@@ -44,10 +66,10 @@ float canput_weight = 0.5;
 
 bool busy[n_slaves];
 
-void output_led(int lpin, int dpin, int cpin, uint64_t val) {
+void output_led(int lpin, int dpin, int cpin, bool* arr) {
   digitalWrite(lpin, LOW);
   for (int i = 0; i < hw2; i++) {
-    digitalWrite(dpin, !!(val & ((uint64_t)1 << i)));
+    digitalWrite(dpin, arr[i]);
     digitalWrite(cpin, HIGH);
     digitalWrite(cpin, LOW);
   }
@@ -87,22 +109,19 @@ void print_board(const int* p, const int* o, const int* m) {
     }
     Serial.println("");
   }
-  uint64_t pp, oo;
-  for (int i = 0; i < hw; i++){
-    pp <<= hw;
-    pp |= p[i] | m[i];
-  }
-  for (int i = 0; i < hw; i++){
-    for (int j = 0; j < hw; j++){
-      oo <<= 1;
-      oo |= 1 & (o[hw - 1 - i] >> (hw - 1 - j));
-      oo |= 1 & (m[hw - 1 - i] >> (hw - 1 - j));
+  bool pp[hw2], oo[hw2];
+  for (int i = 0; i < hw; i++) {
+    for (int j = 0; j < hw; j++) {
+      pp[led_arr_r[i * hw + j]] = 1 & (p[i] >> (hw - 1 - j));
+      pp[led_arr_r[i * hw + j]] |= 1 & (m[i] >> (hw - 1 - j));
+      oo[led_arr_g[i * hw + j]] = 1 & (o[i] >> (hw - 1 - j));
+      oo[led_arr_g[i * hw + j]] |= 1 & (m[i] >> (hw - 1 - j));
     }
   }
   output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, pp);
   output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
   int num = pop_count(p) * 100 + pop_count(o);
-  display.showNumberDecEx(num,0x40,true);
+  display.showNumberDecEx(num, 0x40, true);
 }
 
 void print_board(const int* p, const int* o) {
@@ -120,6 +139,17 @@ void print_board(const int* p, const int* o) {
     }
     Serial.println("");
   }
+  bool pp[hw2], oo[hw2];
+  for (int i = 0; i < hw; i++) {
+    for (int j = 0; j < hw; j++) {
+      pp[led_arr_r[i * hw + j]] = 1 & (p[i] >> (hw - 1 - j));
+      oo[led_arr_g[i * hw + j]] = 1 & (o[i] >> (hw - 1 - j));
+    }
+  }
+  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, pp);
+  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
+  int num = pop_count(p) * 100 + pop_count(o);
+  display.showNumberDecEx(num, 0x40, true);
 }
 
 bool inside(int y, int x) {
@@ -561,7 +591,7 @@ void ai(const int* me, const int* op, int* pt) {
     for (int j = 0; j < n_canput; j++) {
       if (used[j])
         continue;
-      if (max_val < scores[j]){
+      if (max_val < scores[j]) {
         max_val = scores[j];
         max_idx = j;
         y = yx[j][0];
@@ -673,17 +703,28 @@ void play() {
       continue;
     }
     Serial.println(stones);
-    print_board(black, white, mobility);
     if (turn == 0) {
       digitalWrite(RED, HIGH);
       y = -1;
       x = 0;
       while (!(inside(y, x) && mobility[y] & (1 << (hw - 1 - x)))) {
-        Serial.println("input a move");
-        while (!Serial.available());
-        x = (int)(Serial.read() - 'a');
-        while (!Serial.available());
-        y = (int)(Serial.read() - '1');
+        /*
+          Serial.println("input a move");
+          while (!Serial.available());
+          x = (int)(Serial.read() - 'a');
+          while (!Serial.available());
+          y = (int)(Serial.read() - '1');
+        */
+        button.listen();
+        button.write((byte)0);
+        while (button.available() < 2) {
+          print_board(black, white, mobility);
+          delay(100);
+          print_board(black, white);
+          delay(100);
+        }
+        y = (int)button.read();
+        x = (int)button.read();
         Serial.print((char)(x + 'a'));
         Serial.println(y + 1);
       }
@@ -694,6 +735,7 @@ void play() {
       digitalWrite(RED, LOW);
     } else {
       digitalWrite(GREEN, HIGH);
+      print_board(black, white);
       ai(white, black, pt);
       move_board(white, black, pt, white, black);
       digitalWrite(GREEN, LOW);
@@ -714,7 +756,7 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000);
   Serial.begin(115200);
-  button.begin(9600);
+  button.begin(1200);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
   pinMode(RED, OUTPUT);
@@ -727,6 +769,42 @@ void setup() {
   pinMode(CLOCKPIN2, OUTPUT);
   pinMode(STRENGTH, INPUT);
   display.setBrightness(0x0f);
+  bool arr1[hw2], arr2[hw2];
+  for (int i = 0; i < hw2; i++) {
+    arr1[i] = true;
+    arr2[i] = false;
+  }
+  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, arr1);
+  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr2);
+  delay(1000);
+  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, arr2);
+  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr1);
+  delay(1000);
+  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr2);
+  /*
+    for (int u = 0; u < 64; u++) {
+    for (int i = 0; i < 64; i++)
+      arr1[i] = false;
+    arr1[u] = true;
+    for (int i = 0; i < 64; i++)
+      arr2[led_arr_g[i]] = arr1[i];
+    output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, arr2);
+    delay(50);
+    }
+    for (int i = 0; i < hw2; i++)
+    arr2[i] = false;
+    output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, arr2);
+    for (int u = 0; u < 64; u++) {
+    for (int i = 0; i < 64; i++)
+      arr1[i] = false;
+    arr1[u] = true;
+    for (int i = 0; i < 64; i++)
+      arr2[led_arr_r[i]] = arr1[i];
+    output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr2);
+    delay(50);
+    }
+    output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr2);
+  */
   Serial.println("set up");
   play();
 }
