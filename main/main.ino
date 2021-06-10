@@ -93,22 +93,6 @@ void output_led(int lpin, int dpin, int cpin, bool* arr) {
   }
 */
 void print_board(const int* p, const int* o, const int* m) {
-  Serial.println("  a b c d e f g h ");
-  for (int i = 0; i < hw; i++) {
-    Serial.print(i + 1);
-    Serial.print(" ");
-    for (int j = hw - 1; j >= 0; j--) {
-      if (1 & (p[i] >> j))
-        Serial.print("0 ");
-      else if (1 & (o[i] >> j))
-        Serial.print("1 ");
-      else if (1 & (m[i] >> j))
-        Serial.print("* ");
-      else
-        Serial.print(". ");
-    }
-    Serial.println("");
-  }
   bool pp[hw2], oo[hw2];
   for (int i = 0; i < hw; i++) {
     for (int j = 0; j < hw; j++) {
@@ -125,20 +109,6 @@ void print_board(const int* p, const int* o, const int* m) {
 }
 
 void print_board(const int* p, const int* o) {
-  Serial.println("  a b c d e f g h ");
-  for (int i = 0; i < hw; i++) {
-    Serial.print(i + 1);
-    Serial.print(" ");
-    for (int j = hw - 1; j >= 0; j--) {
-      if (1 & (p[i] >> j))
-        Serial.print("0 ");
-      else if (1 & (o[i] >> j))
-        Serial.print("1 ");
-      else
-        Serial.print(". ");
-    }
-    Serial.println("");
-  }
   bool pp[hw2], oo[hw2];
   for (int i = 0; i < hw; i++) {
     for (int j = 0; j < hw; j++) {
@@ -150,6 +120,25 @@ void print_board(const int* p, const int* o) {
   output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
   int num = pop_count(p) * 100 + pop_count(o);
   display.showNumberDecEx(num, 0x40, true);
+}
+
+void print_serial_board(const int* p, const int* o, const int* m) {
+  Serial.println("  a b c d e f g h ");
+  for (int i = 0; i < hw; i++) {
+    Serial.print(i + 1);
+    Serial.print(" ");
+    for (int j = hw - 1; j >= 0; j--) {
+      if (1 & (p[i] >> j))
+        Serial.print("0 ");
+      else if (1 & (o[i] >> j))
+        Serial.print("1 ");
+      else if (1 & (m[i] >> j))
+        Serial.print("* ");
+      else
+        Serial.print(". ");
+    }
+    Serial.println("");
+  }
 }
 
 bool inside(int y, int x) {
@@ -394,7 +383,7 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   check_mobility(me, op, mobility);
   int n_canput = pop_count(mobility);
   if (n_canput == 0)
-    return nega_alpha(op, me, depth, alpha, beta, skip_cnt + 1, 0);
+    return nega_alpha(op, me, depth, -beta, -alpha, skip_cnt + 1, 0);
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
@@ -539,7 +528,7 @@ void ai(const int* me, const int* op, int* pt) {
   int yx[32][2];
   int idx = 0;
   int n_me[hw], n_op[hw];
-  float score;
+  float score, max_score = -65.0;
   int y, x;
   for (int i = 0; i < hw; i++)
     pt[i] = 0;
@@ -548,7 +537,8 @@ void ai(const int* me, const int* op, int* pt) {
       if (1 & (mobility[i] >> j)) {
         pt[i] |= 1 << j;
         move_board(me, op, pt, n_me, n_op);
-        score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, -65.0, 65.0, 0, n_canput);
+        //score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, -65.0, 65.0, 0, n_canput);
+        score = -nega_alpha(n_op, n_me, max_depth - slave_depth - 2, max_score, 65.0, 0, n_canput);
         //Serial.print(" ");
         /*
           Serial.print((char)(hw - 1 - j + 'a'));
@@ -561,13 +551,13 @@ void ai(const int* me, const int* op, int* pt) {
         yx[idx][0] = i;
         yx[idx][1] = j;
         idx++;
-        /*
-          if (max_score < score) {
+
+        if (max_score < score) {
           max_score = score;
           y = i;
           x = j;
-          }
-        */
+        }
+
         pt[i] = 0;
       }
     }
@@ -575,6 +565,7 @@ void ai(const int* me, const int* op, int* pt) {
   //Serial.print((char)(hw - 1 - x + 'a'));
   //Serial.println(y + 1);
   //pt[y] |= 1 << x;
+  /*
   int use_idx = max(0, min(n_canput - 1, n_canput * (analogRead(STRENGTH) - 512) / 512));
   Serial.print("adopt idx ");
   Serial.print(n_canput);
@@ -601,6 +592,8 @@ void ai(const int* me, const int* op, int* pt) {
     used[max_idx] = true;
   }
   Serial.println(max_val);
+  */
+  Serial.println(max_score);
   pt[y] |= 1 << x;
 }
 
@@ -703,6 +696,7 @@ void play() {
       continue;
     }
     Serial.println(stones);
+    print_serial_board(black, white, mobility);
     if (turn == 0) {
       digitalWrite(RED, HIGH);
       y = -1;

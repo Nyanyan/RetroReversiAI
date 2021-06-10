@@ -286,7 +286,7 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
   check_mobility(me, op, mobility);
   int n_canput = pop_count(mobility);
   if (n_canput == 0)
-    return nega_alpha(op, me, depth, alpha, beta, skip_cnt + 1, 0);
+    return nega_alpha(op, me, depth, -beta, -alpha, skip_cnt + 1, 0);
   int n_me[hw], n_op[hw];
   int pt[hw] = {0, 0, 0, 0, 0, 0, 0, 0};
   float val = -65.0, v;
@@ -338,7 +338,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(9);
+  Wire.begin(15);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
