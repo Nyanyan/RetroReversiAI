@@ -455,7 +455,9 @@ float nega_alpha(const int* me, const int* op, int depth, float alpha, float bet
     //Serial.print(n_vals);
     //Serial.print(" ");
     int cnt = 0;
-    while (cnt < n_vals) {
+    int t = 0;
+    while (cnt < n_vals && t < 10000) {
+      ++t;
       cnt = 0;
       for (int k = 0; k < n_vals; k++) {
         if (done[k]) {
