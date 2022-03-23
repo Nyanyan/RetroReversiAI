@@ -73,13 +73,13 @@ inline void output_led(int lpin, int dpin, int cpin, bool* arr) {
   digitalWrite(lpin, HIGH);
 }
 
-inline void print_board(const uint64_t p, uint64_t o, const uint64_t m) {
+inline void print_board(const uint64_t p, const uint64_t o, const uint64_t m) {
   bool pp[hw2], oo[hw2];
   for (int i = 0; i < hw2; ++i) {
     pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
-    pp[led_arr_r[i]] = 1 & (m >> (hw2 - 1 - i));
+    pp[led_arr_r[i]] |= 1 & (m >> (hw2 - 1 - i));
     oo[led_arr_g[i]] = 1 & (o >> (hw2 - 1 - i));
-    oo[led_arr_g[i]] = 1 & (m >> (hw2 - 1 - i));
+    oo[led_arr_g[i]] |= 1 & (m >> (hw2 - 1 - i));
   }
   output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, pp);
   output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
@@ -199,43 +199,43 @@ inline uint64_t unrotate_135(uint64_t x) {
 inline uint64_t calc_legal(const uint64_t me, const uint64_t op) {
   // horizontal
   uint64_t p1 = (me & 0x7F7F7F7F7F7F7F7FULL) << 1;
-  uint64_t legal = ~(p1 + op) & (p1 + (op & 0x7F7F7F7F7F7F7F7FULL));
+  uint64_t legal = ~(p1 | op) & (p1 + (op & 0x7F7F7F7F7F7F7F7FULL));
   uint64_t me_proc = horizontal_mirror(me);
   uint64_t op_proc = horizontal_mirror(op);
   p1 = (me_proc & 0x7F7F7F7F7F7F7F7FULL) << 1;
-  legal |= horizontal_mirror(~(p1 + op_proc) & (p1 + (op_proc & 0x7F7F7F7F7F7F7F7FULL)));
+  legal |= horizontal_mirror(~(p1 | op_proc) & (p1 + (op_proc & 0x7F7F7F7F7F7F7F7FULL)));
 
   // vertical
   me_proc = black_line_mirror(me);
   op_proc = black_line_mirror(op);
   p1 = (me_proc & 0x7F7F7F7F7F7F7F7FULL) << 1;
-  uint64_t legal_proc = ~(p1 + op_proc) & (p1 + (op_proc & 0x7F7F7F7F7F7F7F7FULL));
+  uint64_t legal_proc = ~(p1 | op_proc) & (p1 + (op_proc & 0x7F7F7F7F7F7F7F7FULL));
   me_proc = horizontal_mirror(me_proc);
   op_proc = horizontal_mirror(op_proc);
   p1 = (me_proc & 0x7F7F7F7F7F7F7F7FULL) << 1;
-  legal_proc |= horizontal_mirror(~(p1 + op_proc) & (p1 + (op_proc & 0x7F7F7F7F7F7F7F7FULL)));
+  legal_proc |= horizontal_mirror(~(p1 | op_proc) & (p1 + (op_proc & 0x7F7F7F7F7F7F7F7FULL)));
   legal |= black_line_mirror(legal_proc);
 
   // 45 deg
   me_proc = rotate_45(me);
   op_proc = rotate_45(op);
   p1 = (me_proc & 0x5F6F777B7D7E7F3FULL) << 1;
-  legal_proc = ~(p1 + op_proc) & (p1 + (op_proc & 0x5F6F777B7D7E7F3FULL));
+  legal_proc = ~(p1 | op_proc) & (p1 + (op_proc & 0x5F6F777B7D7E7F3FULL));
   me_proc = horizontal_mirror(me_proc);
   op_proc = horizontal_mirror(op_proc);
   p1 = (me_proc & 0x7D7B776F5F3F7F7EULL) << 1;
-  legal_proc |= horizontal_mirror(~(p1 + op_proc) & (p1 + (op_proc & 0x7D7B776F5F3F7F7EULL)));
+  legal_proc |= horizontal_mirror(~(p1 | op_proc) & (p1 + (op_proc & 0x7D7B776F5F3F7F7EULL)));
   legal |= unrotate_45(legal_proc);
 
   // 135 deg
   me_proc = rotate_135(me);
   op_proc = rotate_135(op);
   p1 = (me_proc & 0x7D7B776F5F3F7F7EULL) << 1;
-  legal_proc = ~(p1 + op_proc) & (p1 + (op_proc & 0x7D7B776F5F3F7F7EULL));
+  legal_proc = ~(p1 | op_proc) & (p1 + (op_proc & 0x7D7B776F5F3F7F7EULL));
   me_proc = horizontal_mirror(me_proc);
   op_proc = horizontal_mirror(op_proc);
   p1 = (me_proc & 0x5F6F777B7D7E7F3FULL) << 1;
-  legal_proc |= horizontal_mirror(~(p1 + op_proc) & (p1 + (op_proc & 0x5F6F777B7D7E7F3FULL)));
+  legal_proc |= horizontal_mirror(~(p1 | op_proc) & (p1 + (op_proc & 0x5F6F777B7D7E7F3FULL)));
   legal |= unrotate_135(legal_proc);
 
   return legal & ~(me | op);
@@ -245,21 +245,29 @@ inline uint64_t trans(const uint64_t pt, const int k) {
   uint64_t res = 0ULL;
   switch (k) {
     case 0:
-      res = (pt << 8) & 0xffffffffffffff00ULL;
+      res = (pt << 8) & 0xFFFFFFFFFFFFFF00ULL;
+      break;
     case 1:
-      res = (pt << 7) & 0x7f7f7f7f7f7f7f00ULL;
+      res = (pt << 7) & 0x7F7F7F7F7F7F7F00ULL;
+      break;
     case 2:
-      res = (pt >> 1) & 0x7f7f7f7f7f7f7f7fULL;
+      res = (pt >> 1) & 0x7F7F7F7F7F7F7F7FULL;
+      break;
     case 3:
-      res = (pt >> 9) & 0x007f7f7f7f7f7f7fULL;
+      res = (pt >> 9) & 0x007F7F7F7F7F7F7FULL;
+      break;
     case 4:
-      res = (pt >> 8) & 0x00ffffffffffffffULL;
+      res = (pt >> 8) & 0x00FFFFFFFFFFFFFFULL;
+      break;
     case 5:
-      res = (pt >> 7) & 0x00fefefefefefefeULL;
+      res = (pt >> 7) & 0x00FEFEFEFEFEFEFEULL;
+      break;
     case 6:
-      res = (pt << 1) & 0xfefefefefefefefeULL;
+      res = (pt << 1) & 0xFEFEFEFEFEFEFEFEULL;
+      break;
     case 7:
-      res = (pt << 9) & 0xfefefefefefefe00ULL;
+      res = (pt << 9) & 0xFEFEFEFEFEFEFE00ULL;
+      break;
     default:
       res = 0ULL;
   }
@@ -273,7 +281,7 @@ uint64_t calc_flip(const uint64_t me, const uint64_t op, int cell) {
   for (int k = 0; k < 8; ++k) {
     rev2 = 0ULL;
     mask = trans(pt, k);
-    while ((mask != 0) && (mask & op) != 0) {
+    while (mask && (mask & op)) {
       rev2 |= mask;
       mask = trans(mask, k);
     }
@@ -281,6 +289,7 @@ uint64_t calc_flip(const uint64_t me, const uint64_t op, int cell) {
       rev |= rev2;
     }
   }
+  return rev;
 }
 
 inline void flip_do(uint64_t *me, uint64_t *op, uint64_t flip, int pos) {
@@ -305,33 +314,30 @@ inline int pop_count(uint64_t x) {
 
 inline int evaluate(const uint64_t me, const uint64_t op) {
   const int me_cnt = pop_count(me), op_cnt = pop_count(op);
-  float weight_me = 0, weight_op = 0;
+  int weight_me = 0, weight_op = 0;
   uint64_t mobility;
   for (int i = 0; i < hw2; ++i) {
     weight_me += weight[i] * (1 & me >> i);
     weight_op += weight[i] * (1 & op >> i);
   }
   int weight_proc;
+  //weight_proc = weight_me - weight_op;
   weight_proc = weight_me / max(1, me_cnt) - weight_op / max(1, op_cnt);
   return max(-score_max, min(score_max, weight_proc));
 }
 
 inline int end_game(const uint64_t me, uint64_t op) {
-  return 1000 * (pop_count(me) - pop_count(op));
+  return 100 * (pop_count(me) - pop_count(op));
 }
 
-inline void move_ordering(uint64_t flips[], int places[], int values[], const int siz) {
+inline void move_ordering(int places[], int values[], const int siz) {
   int i, j, tmp;
-  uint64_t tmp_flip;
   for (i = 0; i < siz; ++i) {
     for (j = i + 1; j < siz; ++j) {
       if (values[i] < values[j]) {
         tmp = values[i];
         values[i] = values[j];
         values[j] = tmp;
-        tmp_flip = flips[i];
-        flips[i] = flips[j];
-        flips[j] = tmp_flip;
         tmp = places[i];
         places[i] = places[j];
         places[j] = tmp;
@@ -364,23 +370,21 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
   if (depth == 0) {
     return evaluate(me, op);
   }
-  uint64_t flips[canput];
   int values[canput], places[canput];
   int i = 0;
   for (int cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
     places[i] = cell;
-    flips[i] = calc_flip(me, op, cell);
-    flip_do(&me, &op, flips[i], cell);
-    values[i] = evaluate(me, op);
-    flip_undo(&me, &op, flips[i], cell);
+    values[i] = weight[cell];
     ++i;
   }
-  move_ordering(flips, places, values, canput);
+  move_ordering(places, values, canput);
   int g;
+  uint64_t flip;
   for (i = 0; i < canput; ++i) {
-    flip_do(&me, &op, flips[i], places[i]);
+    flip = calc_flip(me, op, places[i]);
+    flip_do(&me, &op, flip, places[i]);
     g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
-    flip_undo(&me, &op, flips[i], places[i]);
+    flip_undo(&me, &op, flip, places[i]);
     alpha = max(alpha, g);
   }
   return alpha;
@@ -389,35 +393,35 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
 inline int ai(const uint64_t me, const uint64_t op) {
   uint64_t legal = calc_legal(me, op);
   const int canput = pop_count(legal);
-  uint64_t flips[canput];
   int values[canput], places[canput];
   int i = 0;
   for (int cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
     places[i] = cell;
-    flips[i] = calc_flip(me, op, cell);
-    flip_do(&me, &op, flips[i], cell);
-    values[i] = evaluate(me, op);
-    flip_undo(&me, &op, flips[i], cell);
+    values[i] = weight[i];
     ++i;
   }
-  move_ordering(flips, places, values, canput);
+  move_ordering(places, values, canput);
   int g, alpha = -score_max, policy_idx = 0;
+  uint64_t flip;
   for (i = 0; i < canput; ++i) {
-    flip_do(&me, &op, flips[i], places[i]);
-    g = -nega_alpha(op, me, max_depth, -score_max, -alpha, false);
-    flip_undo(&me, &op, flips[i], places[i]);
+    flip = calc_flip(me, op, places[i]);
+    flip_do(&me, &op, flip, places[i]);
+    g = -nega_alpha(op, me, max_depth - 1, -score_max, -alpha, false);
+    flip_undo(&me, &op, flip, places[i]);
     if (alpha < g) {
       alpha = g;
       policy_idx = i;
     }
   }
+  Serial.print("value: ");
+  Serial.println(alpha);
   return places[policy_idx];
 }
 
 void play() {
   // black: red white: green
   uint64_t black = 0b0000000000000000000000000000100000010000000000000000000000000000;
-  uint64_t white = 0b0000000000000000000000000001000000100000000000000000000000000000;
+  uint64_t white = 0b0000000000000000000000000001000000001000000000000000000000000000;
   bool skipped = false;
   uint64_t legal, flip;
   int turn = 0;
@@ -434,9 +438,9 @@ void play() {
       print_serial_board(black, white, legal);
       if (turn == 0) {
         digitalWrite(RED, HIGH);
-        y = -1;
-        x = 0;
-        while (!(inside(y, x) && legal & (1 << (hw - 1 - y * hw - x)))) {
+        y = 0;
+        x = -1;
+        while (!inside(y, x) || (legal & (1ULL << (hw2 - 1 - (y * hw + x)))) == 0ULL) {
           button.listen();
           while (button.available())
             button.read();
@@ -452,9 +456,17 @@ void play() {
           Serial.print((char)(x + 'a'));
           Serial.println(y + 1);
         }
-        flip = calc_flip(black, white, hw - 1 - (y * hw + x));
-        flip_do(&black, &white, flip, hw - 1 - (y * hw + x));
+        flip = calc_flip(black, white, hw2 - 1 - (y * hw + x));
+        flip_do(&black, &white, flip, hw2 - 1 - (y * hw + x));
         digitalWrite(RED, LOW);
+        /*
+          digitalWrite(GREEN, HIGH);
+          print_board(black, white);
+          place = ai(black, white);
+          flip = calc_flip(black, white, place);
+          flip_do(&black, &white, flip, place);
+          digitalWrite(GREEN, LOW);
+        */
       } else {
         digitalWrite(GREEN, HIGH);
         print_board(black, white);
@@ -474,6 +486,7 @@ void play() {
       continue;
     }
   }
+  print_serial_board(black, white, 0ULL);
   print_board(black, white);
   Serial.print("black(0): ");
   Serial.println(pop_count(black));
