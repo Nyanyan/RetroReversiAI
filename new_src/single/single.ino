@@ -443,15 +443,18 @@ void play() {
         y = 0;
         x = -1;
         while (!inside(y, x) || (legal & (1ULL << (hw2 - 1 - (y * hw + x)))) == 0ULL) {
-          button.listen();
+          //button.listen();
           while (button.available())
             button.read();
-          button.write((byte)0);
+          while (!button.available())
+            button.write((byte)0);
+          while (button.available())
+            button.read();
           while (button.available() < 2) {
             print_board(black, white, legal);
-            delay(100);
+            delay(200);
             print_board(black, white);
-            delay(100);
+            delay(200);
           }
           y = (int)button.read();
           x = (int)button.read();

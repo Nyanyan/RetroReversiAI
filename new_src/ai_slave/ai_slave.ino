@@ -2,7 +2,7 @@
 
 #define hw 8
 #define hw2 64
-#define slave_depth 1
+#define slave_depth 2
 #define score_max 6400
 
 bool waiting = false;
@@ -262,7 +262,7 @@ inline int next_bit(uint64_t *x) {
   return ntz(x);
 }
 
-int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int beta, bool skipped) {
+int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
   uint64_t legal = calc_legal(me, op);
   const int canput = pop_count(legal);
   if (canput == 0) {
@@ -299,28 +299,32 @@ void receive(int num) {
   waiting = false;
   int i;
   int tmp1, tmp2;
-  while (Wire.available() >= 20) {
-    for (i = 0; i < hw; ++i)
-      in_me |= ((uint64_t)Wire.read()) << (hw * i);
-    for (i = 0; i < hw; ++i)
-      in_op |= ((uint64_t)Wire.read()) << (hw * i);
-    tmp1 = Wire.read();
-    tmp2 = Wire.read();
-    in_alpha = tmp1 * 256 + tmp2 - score_max;
-    tmp1 = Wire.read();
-    tmp2 = Wire.read();
-    in_beta = tmp1 * 256 + tmp2 - score_max;
-  }
+  in_me = 0ULL;
+  in_op = 0ULL;
+  while (Wire.available() < 20);
+  for (i = 0; i < hw; ++i)
+    in_me |= ((uint64_t)Wire.read()) << (hw * i);
+  for (i = 0; i < hw; ++i)
+    in_op |= ((uint64_t)Wire.read()) << (hw * i);
+  tmp1 = Wire.read();
+  tmp2 = Wire.read();
+  in_alpha = tmp1 * 256 + tmp2 - score_max;
+  tmp1 = Wire.read();
+  tmp2 = Wire.read();
+  in_beta = tmp1 * 256 + tmp2 - score_max;
+  digitalWrite(5, HIGH);
 }
 
 void request() {
   Wire.write((int)waiting);
   Wire.write(val1);
   Wire.write(val2);
+  if (waiting)
+    digitalWrite(5, LOW);
 }
 
 void setup() {
-  Wire.begin(8);
+  Wire.begin(11);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
@@ -335,12 +339,10 @@ void setup() {
 
 void loop() {
   if (!waiting) {
-    digitalWrite(5, HIGH);
     int calculated_val = nega_alpha(in_me, in_op, slave_depth, in_alpha, in_beta, false);
     calculated_val += score_max;
     val1 = calculated_val / 256;
     val2 = calculated_val % 256;
-    digitalWrite(5, LOW);
     waiting = true;
   }
 }

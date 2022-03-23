@@ -15,32 +15,32 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.available()) {
-    digitalWrite(led, HIGH);
-    while (Serial.available())
-      Serial.read();
-    int y = -1;
-    int x = -1;
-    bool flag = false;
-    while (!flag) {
-      for (int i = 0; i < hw; i++) {
-        digitalWrite(outs[i], HIGH);
-        delay(1);
-        for (int j = 0; j < hw; j++) {
-          if (digitalRead(ins[j]) == HIGH) {
-            y = i;
-            x = j;
-            flag = true;
-            break;
-          }
-        }
-        digitalWrite(outs[i], LOW);
-        if (flag)
+  while (!Serial.available());
+  Serial.write((byte)255);
+  digitalWrite(led, HIGH);
+  while (Serial.available())
+    Serial.read();
+  int y = -1;
+  int x = -1;
+  bool flag = false;
+  while (!flag) {
+    for (int i = 0; i < hw; i++) {
+      digitalWrite(outs[i], HIGH);
+      delay(1);
+      for (int j = 0; j < hw; j++) {
+        if (digitalRead(ins[j]) == HIGH) {
+          y = i;
+          x = j;
+          flag = true;
           break;
+        }
       }
+      digitalWrite(outs[i], LOW);
+      if (flag)
+        break;
     }
-    Serial.write((byte)y);
-    Serial.write((byte)x);
-    digitalWrite(led, LOW);
   }
+  Serial.write((byte)y);
+  Serial.write((byte)x);
+  digitalWrite(led, LOW);
 }

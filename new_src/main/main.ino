@@ -22,8 +22,8 @@ SoftwareSerial button(12, 13); // RX, TX
 
 #define hw 8
 #define hw2 64
-#define n_slaves 1
-#define slave_depth 1
+#define n_slaves 4
+#define slave_depth 2
 #define max_depth 5
 #define score_max 6400
 
@@ -49,7 +49,7 @@ const int led_arr_r[64] = {
   15, 8, 9, 10, 11, 12, 13, 14
 };
 
-const int slaves[n_slaves] = {8};
+const int slaves[n_slaves] = {8, 9, 10, 11};
 
 const int weight[hw2] = {
   120, -20,  20,   5,   5,  20, -20, 120,
@@ -63,6 +63,7 @@ const int weight[hw2] = {
 };
 
 bool busy[n_slaves];
+bool pp[hw2], oo[hw2];
 
 inline void output_led(int lpin, int dpin, int cpin, bool* arr) {
   digitalWrite(lpin, LOW);
@@ -75,7 +76,6 @@ inline void output_led(int lpin, int dpin, int cpin, bool* arr) {
 }
 
 inline void print_board(const uint64_t p, const uint64_t o, const uint64_t m) {
-  bool pp[hw2], oo[hw2];
   for (int i = 0; i < hw2; ++i) {
     pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
     pp[led_arr_r[i]] |= 1 & (m >> (hw2 - 1 - i));
@@ -89,7 +89,6 @@ inline void print_board(const uint64_t p, const uint64_t o, const uint64_t m) {
 }
 
 inline void print_board(const uint64_t p, const uint64_t o) {
-  bool pp[hw2], oo[hw2];
   for (int i = 0; i < hw2; ++i) {
     pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
     oo[led_arr_g[i]] = 1 & (o >> (hw2 - 1 - i));
@@ -119,7 +118,7 @@ inline void print_serial_board(const uint64_t p, const uint64_t o, const uint64_
   }
 }
 
-bool inside(int y, int x) {
+inline bool inside(int y, int x) {
   return 0 <= y && y < hw && 0 <= x && x < hw;
 }
 
@@ -314,17 +313,12 @@ inline int pop_count(uint64_t x) {
 }
 
 inline int evaluate(const uint64_t me, const uint64_t op) {
-  const int me_cnt = pop_count(me), op_cnt = pop_count(op);
-  int weight_me = 0, weight_op = 0;
-  uint64_t mobility;
+  int res = 0;
   for (int i = 0; i < hw2; ++i) {
-    weight_me += weight[i] * (1 & me >> i);
-    weight_op += weight[i] * (1 & op >> i);
+    res += weight[i] * (1 & me >> i);
+    res -= weight[i] * (1 & op >> i);
   }
-  int weight_proc;
-  weight_proc = weight_me - weight_op;
-  //weight_proc = weight_me / max(1, me_cnt) - weight_op / max(1, op_cnt);
-  return max(-score_max, min(score_max, weight_proc));
+  return res;
 }
 
 inline int end_game(const uint64_t me, uint64_t op) {
@@ -348,7 +342,7 @@ inline void move_ordering(int places[], int values[], const int siz) {
 }
 
 inline int ntz(uint64_t *x) {
-  return pop_count((*x & (-(*x))) - 1);
+  return pop_count((*x & (~(*x) + 1)) - 1);
 }
 
 inline int first_bit(uint64_t *x) {
@@ -360,15 +354,15 @@ inline int next_bit(uint64_t *x) {
   return ntz(x);
 }
 
-int send_slave(uint64_t me, uint64_t op, int alpha, int beta, int i) {
+inline void send_slave(uint64_t me, uint64_t op, int alpha, int beta, int i) {
   Wire.beginTransmission(slaves[i]);
   int j;
   for (j = 0; j < hw; j++) {
-    Wire.write((uint8_t)(me & 0xFF));
+    Wire.write((byte)(me & 0xFF));
     me >>= 8;
   }
   for (j = 0; j < hw; j++) {
-    Wire.write((uint8_t)(op & 0xFF));
+    Wire.write((byte)(op & 0xFF));
     op >>= 8;
   }
   alpha += score_max;
@@ -381,7 +375,7 @@ int send_slave(uint64_t me, uint64_t op, int alpha, int beta, int i) {
   busy[i] = true;
 }
 
-int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int beta, bool skipped) {
+int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
   uint64_t legal = calc_legal(me, op);
   const int canput = pop_count(legal);
   if (canput == 0) {
@@ -411,7 +405,7 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
     if (beta <= alpha)
       return alpha;
     bool sent;
-    int j;
+    int j, tmp1, tmp2;
     for (i = 1; i < canput; ++i) {
       sent = false;
       flip = calc_flip(me, op, places[i]);
@@ -424,7 +418,8 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
         } else {
           Wire.requestFrom(slaves[j], 3);
           if (Wire.read()) {
-            int tmp1 = Wire.read(), tmp2 = Wire.read();
+            tmp1 = (int)Wire.read();
+            tmp2 = (int)Wire.read();
             g = -(tmp1 * 256 + tmp2 - score_max);
             busy[j] = false;
             alpha = max(alpha, g);
@@ -443,10 +438,11 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
         break;
     }
     for (i = 0; i < n_slaves; ++i) {
-      while (busy[i]){
+      while (busy[i]) {
         Wire.requestFrom(slaves[i], 3);
         if (Wire.read()) {
-          int tmp1 = Wire.read(), tmp2 = Wire.read();
+          tmp1 = (int)Wire.read();
+          tmp2 = (int)Wire.read();
           g = -(tmp1 * 256 + tmp2 - score_max);
           busy[i] = false;
           alpha = max(alpha, g);
@@ -470,7 +466,7 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
   return alpha;
 }
 
-inline int ai(const uint64_t me, const uint64_t op) {
+inline int ai(uint64_t me, uint64_t op) {
   uint64_t legal = calc_legal(me, op);
   const int canput = pop_count(legal);
   int values[canput], places[canput];
@@ -506,7 +502,7 @@ void play() {
   uint64_t legal, flip;
   int turn = 0;
   int y, x, place;
-  int stones = 5;
+  print_board(black, white);
   while (true) {
     if (turn == 0)
       legal = calc_legal(black, white);
@@ -514,23 +510,22 @@ void play() {
       legal = calc_legal(white, black);
     if (pop_count(legal)) {
       skipped = false;
-      Serial.println(stones);
-      print_serial_board(black, white, legal);
       if (turn == 0) {
         digitalWrite(RED, HIGH);
-        y = 0;
+        y = 1;
         x = -1;
         while (!inside(y, x) || (legal & (1ULL << (hw2 - 1 - (y * hw + x)))) == 0ULL) {
-          button.listen();
-          delay(10);
+          //button.listen();
           while (button.available())
             button.read();
-          button.write((byte)0);
+          while (!button.available())
+            button.write((byte)0);
+          button.read();
           while (button.available() < 2) {
             print_board(black, white, legal);
-            delay(100);
+            delay(200);
             print_board(black, white);
-            delay(100);
+            delay(200);
           }
           y = (int)button.read();
           x = (int)button.read();
@@ -539,24 +534,16 @@ void play() {
         }
         flip = calc_flip(black, white, hw2 - 1 - (y * hw + x));
         flip_do(&black, &white, flip, hw2 - 1 - (y * hw + x));
+        print_board(black, white);
         digitalWrite(RED, LOW);
-        /*
-          digitalWrite(GREEN, HIGH);
-          print_board(black, white);
-          place = ai(black, white);
-          flip = calc_flip(black, white, place);
-          flip_do(&black, &white, flip, place);
-          digitalWrite(GREEN, LOW);
-        */
       } else {
         digitalWrite(GREEN, HIGH);
-        print_board(black, white);
         place = ai(white, black);
         flip = calc_flip(white, black, place);
         flip_do(&white, &black, flip, place);
+        print_board(black, white);
         digitalWrite(GREEN, LOW);
       }
-      ++stones;
       turn = 1 - turn;
     } else {
       Serial.println("Skip!");
@@ -582,6 +569,7 @@ void setup() {
   Wire.setClock(400000);
   Serial.begin(115200);
   button.begin(1200);
+  //button.listen();
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
   pinMode(RED, OUTPUT);
