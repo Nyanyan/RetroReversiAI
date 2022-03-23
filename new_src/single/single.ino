@@ -24,7 +24,7 @@ SoftwareSerial button(12, 13); // RX, TX
 #define hw2 64
 #define n_slaves 8
 #define slave_depth 1
-#define max_depth 4
+#define max_depth 5
 #define score_max 6400
 
 const int led_arr_g[64] = {
@@ -321,8 +321,8 @@ inline int evaluate(const uint64_t me, const uint64_t op) {
     weight_op += weight[i] * (1 & op >> i);
   }
   int weight_proc;
-  //weight_proc = weight_me - weight_op;
-  weight_proc = weight_me / max(1, me_cnt) - weight_op / max(1, op_cnt);
+  weight_proc = weight_me - weight_op;
+  //weight_proc = weight_me / max(1, me_cnt) - weight_op / max(1, op_cnt);
   return max(-score_max, min(score_max, weight_proc));
 }
 
@@ -386,6 +386,8 @@ int nega_alpha(const uint64_t me, const uint64_t op, int depth, int alpha, int b
     g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
     flip_undo(&me, &op, flip, places[i]);
     alpha = max(alpha, g);
+    if (beta <= alpha)
+      return alpha;
   }
   return alpha;
 }
