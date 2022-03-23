@@ -712,6 +712,8 @@ void play() {
           y = (int)(Serial.read() - '1');
         */
         button.listen();
+        while (button.available())
+          button.read();
         button.write((byte)0);
         while (button.available() < 2) {
           print_board(black, white, mobility);
