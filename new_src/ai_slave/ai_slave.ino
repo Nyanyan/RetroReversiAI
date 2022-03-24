@@ -216,17 +216,12 @@ inline int pop_count(uint64_t x) {
 }
 
 inline int evaluate(const uint64_t me, const uint64_t op) {
-  const int me_cnt = pop_count(me), op_cnt = pop_count(op);
-  int weight_me = 0, weight_op = 0;
-  uint64_t mobility;
-  for (int i = 0; i < hw2; ++i) {
-    weight_me += weight[i] * (1 & me >> i);
-    weight_op += weight[i] * (1 & op >> i);
+  int res = 0;
+  for (uint8_t i = 0; i < hw2; ++i) {
+    res += weight[i] * (1 & (me >> i));
+    res -= weight[i] * (1 & (op >> i));
   }
-  int weight_proc;
-  weight_proc = weight_me - weight_op;
-  //weight_proc = weight_me / max(1, me_cnt) - weight_op / max(1, op_cnt);
-  return max(-score_max, min(score_max, weight_proc));
+  return max(-score_max, min(score_max, res));
 }
 
 inline int end_game(const uint64_t me, uint64_t op) {

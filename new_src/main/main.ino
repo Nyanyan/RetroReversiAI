@@ -27,7 +27,7 @@ SoftwareSerial button(12, 13); // RX, TX
 #define max_depth 5
 #define score_max 6400
 
-const char led_arr_g[64] = {
+const uint8_t led_arr_g[64] = {
   62, 61, 60, 59, 58, 57, 56, 63,
   54, 53, 52, 51, 50, 49, 48, 55,
   46, 45, 44, 43, 42, 41, 40, 47,
@@ -38,7 +38,7 @@ const char led_arr_g[64] = {
   6, 5, 4, 3, 2, 1, 0, 7
 };
 
-const char led_arr_r[64] = {
+const uint8_t led_arr_r[64] = {
   47, 40, 41, 42, 43, 44, 45, 46,
   55, 48, 49, 50, 51, 52, 53, 54,
   63, 56, 57, 58, 59, 60, 61, 62,
@@ -49,9 +49,9 @@ const char led_arr_r[64] = {
   15, 8, 9, 10, 11, 12, 13, 14
 };
 
-const char slaves[n_slaves] = {8, 9, 10, 11, 12, 13, 14, 15};
+const uint8_t slaves[n_slaves] = {8, 9, 10, 11, 12, 13, 14, 15};
 
-const char weight[hw2] = {
+const int8_t weight[hw2] = {
   120, -20,  20,   5,   5,  20, -20, 120,
   -20, -40,  -5,  -5,  -5,  -5, -40, -20,
   20,  -5,  15,   3,   3,  15,  -5,  20,
@@ -67,7 +67,7 @@ bool pp[hw2], oo[hw2];
 
 inline void output_led(int lpin, int dpin, int cpin, bool* arr) {
   digitalWrite(lpin, LOW);
-  for (int i = 0; i < hw2; i++) {
+  for (uint8_t i = 0; i < hw2; i++) {
     digitalWrite(dpin, arr[i]);
     digitalWrite(cpin, HIGH);
     digitalWrite(cpin, LOW);
@@ -76,7 +76,7 @@ inline void output_led(int lpin, int dpin, int cpin, bool* arr) {
 }
 
 inline void print_board(const uint64_t p, const uint64_t o, const uint64_t m) {
-  for (int i = 0; i < hw2; ++i) {
+  for (uint8_t i = 0; i < hw2; ++i) {
     pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
     pp[led_arr_r[i]] |= 1 & (m >> (hw2 - 1 - i));
     oo[led_arr_g[i]] = 1 & (o >> (hw2 - 1 - i));
@@ -89,7 +89,7 @@ inline void print_board(const uint64_t p, const uint64_t o, const uint64_t m) {
 }
 
 inline void print_board(const uint64_t p, const uint64_t o) {
-  for (int i = 0; i < hw2; ++i) {
+  for (uint8_t i = 0; i < hw2; ++i) {
     pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
     oo[led_arr_g[i]] = 1 & (o >> (hw2 - 1 - i));
   }
@@ -101,10 +101,10 @@ inline void print_board(const uint64_t p, const uint64_t o) {
 
 inline void print_serial_board(const uint64_t p, const uint64_t o, const uint64_t m) {
   Serial.println("  a b c d e f g h ");
-  for (int i = 0; i < hw; ++i) {
+  for (uint8_t i = 0; i < hw; ++i) {
     Serial.print(i + 1);
     Serial.print(" ");
-    for (int j = 0; j < hw; ++j) {
+    for (uint8_t j = 0; j < hw; ++j) {
       if (1 & (p >> (i * hw + j)))
         Serial.print("0 ");
       else if (1 & (o >> (i * hw + j)))
@@ -278,7 +278,7 @@ uint64_t calc_flip(const uint64_t me, const uint64_t op, int cell) {
   uint64_t rev = 0ULL;
   uint64_t rev2, mask;
   uint64_t pt = 1ULL << cell;
-  for (int k = 0; k < 8; ++k) {
+  for (uint8_t k = 0; k < 8; ++k) {
     rev2 = 0ULL;
     mask = trans(pt, k);
     while (mask && (mask & op)) {
@@ -304,7 +304,7 @@ inline void flip_undo(uint64_t *me, uint64_t *op, uint64_t flip, int pos) {
   *op ^= flip;
 }
 
-inline int pop_count(uint64_t x) {
+inline uint8_t pop_count(uint64_t x) {
   x = x - ((x >> 1) & 0x5555555555555555ULL);
   x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
   x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
@@ -314,11 +314,11 @@ inline int pop_count(uint64_t x) {
 
 inline int evaluate(const uint64_t me, const uint64_t op) {
   int res = 0;
-  for (int i = 0; i < hw2; ++i) {
-    res += weight[i] * (1 & me >> i);
-    res -= weight[i] * (1 & op >> i);
+  for (uint8_t i = 0; i < hw2; ++i) {
+    res += weight[i] * (1 & (me >> i));
+    res -= weight[i] * (1 & (op >> i));
   }
-  return res;
+  return max(-score_max, min(score_max, res));
 }
 
 inline int end_game(const uint64_t me, uint64_t op) {
@@ -326,7 +326,8 @@ inline int end_game(const uint64_t me, uint64_t op) {
 }
 
 inline void move_ordering(int places[], int values[], const int siz) {
-  int i, j, tmp;
+  uint8_t i, j;
+  int tmp;
   for (i = 0; i < siz; ++i) {
     for (j = i + 1; j < siz; ++j) {
       if (values[i] < values[j]) {
@@ -341,15 +342,15 @@ inline void move_ordering(int places[], int values[], const int siz) {
   }
 }
 
-inline int ntz(uint64_t *x) {
+inline uint8_t ntz(uint64_t *x) {
   return pop_count((*x & (~(*x) + 1)) - 1);
 }
 
-inline int first_bit(uint64_t *x) {
+inline uint8_t first_bit(uint64_t *x) {
   return ntz(x);
 }
 
-inline int next_bit(uint64_t *x) {
+inline uint8_t next_bit(uint64_t *x) {
   *x &= *x - 1;
   return ntz(x);
 }
@@ -377,7 +378,7 @@ inline void send_slave(uint64_t me, uint64_t op, int alpha, int beta, int i) {
 
 int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
   uint64_t legal = calc_legal(me, op);
-  const int canput = pop_count(legal);
+  const uint8_t canput = pop_count(legal);
   if (canput == 0) {
     if (skipped)
       return end_game(me, op);
@@ -387,8 +388,8 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
     return evaluate(me, op);
   }
   int values[canput], places[canput];
-  int i = 0;
-  for (int cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
+  uint8_t i = 0;
+  for (uint8_t cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
     places[i] = cell;
     values[i] = weight[cell];
     ++i;
@@ -397,6 +398,7 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
   int g;
   uint64_t flip;
   if (depth - 1 == slave_depth) {
+    /*
     flip = calc_flip(me, op, places[0]);
     flip_do(&me, &op, flip, places[0]);
     g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
@@ -404,9 +406,11 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
     alpha = max(alpha, g);
     if (beta <= alpha)
       return alpha;
+    */
     bool sent;
-    int j, tmp1, tmp2;
-    for (i = 1; i < canput; ++i) {
+    uint8_t j;
+    int tmp1, tmp2;
+    for (i = 0; i < canput; ++i) {
       sent = false;
       flip = calc_flip(me, op, places[i]);
       flip_do(&me, &op, flip, places[i]);
@@ -468,10 +472,10 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
 
 inline int ai(uint64_t me, uint64_t op) {
   uint64_t legal = calc_legal(me, op);
-  const int canput = pop_count(legal);
+  const uint8_t canput = pop_count(legal);
   int values[canput], places[canput];
-  int i = 0;
-  for (int cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
+  uint8_t i = 0;
+  for (uint8_t cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
     places[i] = cell;
     values[i] = weight[i];
     ++i;
