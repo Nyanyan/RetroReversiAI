@@ -343,7 +343,7 @@ inline void move_ordering(int places[], int values[], const int siz) {
 }
 
 inline uint8_t ntz(uint64_t *x) {
-  return pop_count((*x & (~(*x) + 1)) - 1);
+  return pop_count((*x & (-(*x))) - 1);
 }
 
 inline uint8_t first_bit(uint64_t *x) {
