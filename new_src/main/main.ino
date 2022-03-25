@@ -63,39 +63,52 @@ const int8_t weight[hw2] = {
 };
 
 bool busy[n_slaves];
-bool pp[hw2], oo[hw2];
+uint64_t pp, oo;
 
-inline void output_led(int lpin, int dpin, int cpin, bool* arr) {
-  digitalWrite(lpin, LOW);
+inline void output_led_pp() {
+  digitalWrite(LATCHPIN1, LOW);
   for (uint8_t i = 0; i < hw2; i++) {
-    digitalWrite(dpin, arr[i]);
-    digitalWrite(cpin, HIGH);
-    delayMicroseconds(1);
-    digitalWrite(cpin, LOW);
+    digitalWrite(DATAPIN1, 1 & (pp >> i));
+    digitalWrite(CLOCKPIN1, HIGH);
+    digitalWrite(CLOCKPIN1, LOW);
   }
-  digitalWrite(lpin, HIGH);
+  digitalWrite(LATCHPIN1, HIGH);
+}
+
+inline void output_led_oo() {
+  digitalWrite(LATCHPIN2, LOW);
+  for (uint8_t i = 0; i < hw2; i++) {
+    digitalWrite(DATAPIN2, 1 & (oo >> i));
+    digitalWrite(CLOCKPIN2, HIGH);
+    digitalWrite(CLOCKPIN2, LOW);
+  }
+  digitalWrite(LATCHPIN2, HIGH);
 }
 
 inline void print_board(const uint64_t p, const uint64_t o, const uint64_t m) {
+  pp = 0ULL;
+  oo = 0ULL;
   for (uint8_t i = 0; i < hw2; ++i) {
-    pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
-    pp[led_arr_r[i]] |= 1 & (m >> (hw2 - 1 - i));
-    oo[led_arr_g[i]] = 1 & (o >> (hw2 - 1 - i));
-    oo[led_arr_g[i]] |= 1 & (m >> (hw2 - 1 - i));
+    pp |= (1 & (p >> (hw2 - 1 - i))) << led_arr_r[i];
+    pp |= (1 & (m >> (hw2 - 1 - i))) << led_arr_r[i];
+    oo |= (1 & (o >> (hw2 - 1 - i))) << led_arr_g[i];
+    oo |= (1 & (m >> (hw2 - 1 - i))) << led_arr_g[i];
   }
-  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, pp);
-  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
+  output_led_pp();
+  output_led_oo();
   int num = pop_count(p) * 100 + pop_count(o);
   display.showNumberDecEx(num, 0x40, true);
 }
 
 inline void print_board(const uint64_t p, const uint64_t o) {
+  pp = 0ULL;
+  oo = 0ULL;
   for (uint8_t i = 0; i < hw2; ++i) {
-    pp[led_arr_r[i]] = 1 & (p >> (hw2 - 1 - i));
-    oo[led_arr_g[i]] = 1 & (o >> (hw2 - 1 - i));
+    pp |= (1 & (p >> (hw2 - 1 - i))) << led_arr_r[i];
+    oo |= (1 & (o >> (hw2 - 1 - i))) << led_arr_g[i];
   }
-  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, pp);
-  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, oo);
+  output_led_pp();
+  output_led_oo();
   int num = pop_count(p) * 100 + pop_count(o);
   display.showNumberDecEx(num, 0x40, true);
 }
@@ -243,36 +256,26 @@ inline uint64_t calc_legal(const uint64_t me, const uint64_t op) {
 }
 
 inline uint64_t trans(const uint64_t pt, const int k) {
-  uint64_t res = 0ULL;
   switch (k) {
     case 0:
-      res = (pt << 8) & 0xFFFFFFFFFFFFFF00ULL;
-      break;
+      return (pt << 8) & 0xFFFFFFFFFFFFFF00ULL;
     case 1:
-      res = (pt << 7) & 0x7F7F7F7F7F7F7F00ULL;
-      break;
+      return (pt << 7) & 0x7F7F7F7F7F7F7F00ULL;
     case 2:
-      res = (pt >> 1) & 0x7F7F7F7F7F7F7F7FULL;
-      break;
+      return (pt >> 1) & 0x7F7F7F7F7F7F7F7FULL;
     case 3:
-      res = (pt >> 9) & 0x007F7F7F7F7F7F7FULL;
-      break;
+      return (pt >> 9) & 0x007F7F7F7F7F7F7FULL;
     case 4:
-      res = (pt >> 8) & 0x00FFFFFFFFFFFFFFULL;
-      break;
+      return (pt >> 8) & 0x00FFFFFFFFFFFFFFULL;
     case 5:
-      res = (pt >> 7) & 0x00FEFEFEFEFEFEFEULL;
-      break;
+      return (pt >> 7) & 0x00FEFEFEFEFEFEFEULL;
     case 6:
-      res = (pt << 1) & 0xFEFEFEFEFEFEFEFEULL;
-      break;
+      return (pt << 1) & 0xFEFEFEFEFEFEFEFEULL;
     case 7:
-      res = (pt << 9) & 0xFEFEFEFEFEFEFE00ULL;
-      break;
+      return (pt << 9) & 0xFEFEFEFEFEFEFE00ULL;
     default:
-      res = 0ULL;
+      return 0ULL;
   }
-  return res;
 }
 
 uint64_t calc_flip(const uint64_t me, const uint64_t op, int cell) {
@@ -592,18 +595,18 @@ void setup() {
   pinMode(CLOCKPIN2, OUTPUT);
   pinMode(STRENGTH, INPUT);
   display.setBrightness(0x0f);
-  bool arr1[hw2], arr2[hw2];
-  for (int i = 0; i < hw2; i++) {
-    arr1[i] = true;
-    arr2[i] = false;
-  }
-  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, arr1);
-  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr2);
+  pp = 0xFFFFFFFFFFFFFFFFULL;
+  oo = 0ULL;
+  output_led_pp();
+  output_led_oo();
   delay(1000);
-  output_led(LATCHPIN1, DATAPIN1, CLOCKPIN1, arr2);
-  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr1);
+  pp = 0ULL;
+  oo = 0xFFFFFFFFFFFFFFFFULL;
+  output_led_pp();
+  output_led_oo();
   delay(1000);
-  output_led(LATCHPIN2, DATAPIN2, CLOCKPIN2, arr2);
+  oo = 0ULL;
+  output_led_oo();
   Serial.println("set up");
   play();
 }
