@@ -2,23 +2,23 @@
 
 #define hw 8
 #define hw2 64
-#define slave_depth 2
 #define score_max 6400
 
 bool waiting = false;
 uint64_t in_me, in_op;
 int in_alpha, in_beta;
 int val1, val2;
+int in_depth;
 
-const int weight[hw2] = {
-  120, -20,  20,   5,   5,  20, -20, 120,
-  -20, -40,  -5,  -5,  -5,  -5, -40, -20,
-  20,  -5,  15,   3,   3,  15,  -5,  20,
-  5,  -5,   3,   3,   3,   3,  -5,   5,
-  5,  -5,   3,   3,   3,   3,  -5,   5,
-  20,  -5,  15,   3,   3,  15,  -5,  20,
-  -20, -40,  -5,  -5,  -5,  -5, -40, -20,
-  120, -20,  20,   5,   5,  20, -20, 120
+const int8_t weight[hw2] = {
+  30, -12, 0, -1, -1, 0, -12, 30,
+  -12, -15, -3, -3, -3, -3, -15, -12,
+  0, -3, 0, -1, -1, 0, -3, 0, 
+  -1, -3, -1, -1, -1, -1, -3, -1, 
+  -1, -3, -1, -1, -1, -1, -3, -1, 
+  0, -3, 0, -1, -1, 0, -3, 0, 
+  -12, -15, -3, -3, -3, -3, -15, -12,
+  30, -12, 0, -1, -1, 0, -12, 30
 };
 
 bool inside(int y, int x) {
@@ -296,7 +296,7 @@ void receive(int num) {
   int tmp1, tmp2;
   in_me = 0ULL;
   in_op = 0ULL;
-  while (Wire.available() < 20);
+  while (Wire.available() < 21);
   for (i = 0; i < hw; ++i)
     in_me |= ((uint64_t)Wire.read()) << (hw * i);
   for (i = 0; i < hw; ++i)
@@ -307,6 +307,7 @@ void receive(int num) {
   tmp1 = Wire.read();
   tmp2 = Wire.read();
   in_beta = tmp1 * 256 + tmp2 - score_max;
+  in_depth = Wire.read();
   digitalWrite(5, HIGH);
 }
 
@@ -334,7 +335,7 @@ void setup() {
 
 void loop() {
   if (!waiting) {
-    int calculated_val = nega_alpha(in_me, in_op, slave_depth, in_alpha, in_beta, false);
+    int calculated_val = nega_alpha(in_me, in_op, in_depth, in_alpha, in_beta, false);
     calculated_val += score_max;
     val1 = calculated_val / 256;
     val2 = calculated_val % 256;
