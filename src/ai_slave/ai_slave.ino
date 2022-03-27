@@ -207,7 +207,7 @@ inline void flip_undo(uint64_t *me, uint64_t *op, uint64_t flip, int pos) {
   *op ^= flip;
 }
 
-inline int pop_count(uint64_t x) {
+inline uint8_t pop_count(uint64_t x) {
   x = x - ((x >> 1) & 0x5555555555555555ULL);
   x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
   x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
@@ -258,35 +258,9 @@ inline uint8_t next_bit(uint64_t *x) {
   return ntz(x);
 }
 
-int nega_alpha_depth1(uint64_t me, uint64_t op, int alpha, int beta, bool skipped){
-  uint64_t legal = calc_legal(me, op);
-  if (!legal){
-    if (skipped)
-      return end_game(me, op);
-    return -nega_alpha_depth1(op, me, -beta, -alpha, true);
-  }
-  uint64_t flip;
-  int g, v = -score_max;
-  for (uint8_t cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
-    flip = calc_flip(me, op, cell);
-    flip_do(&me, &op, flip, cell);
-    g = evaluate(me, op);
-    flip_undo(&me, &op, flip, cell);
-    alpha = max(alpha, g);
-    if (beta <= alpha)
-      return alpha;
-    v = max(v, g);
-  }
-  return v;
-}
-
 int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
-  if (depth == 1)
-    return nega_alpha_depth1(me, op, alpha, beta, skipped);
-  /*
   if (depth == 0)
     return evaluate(me, op);
-  */
   uint64_t legal = calc_legal(me, op);
   const int canput = pop_count(legal);
   if (canput == 0) {
@@ -346,7 +320,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(8);
+  Wire.begin(15);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
