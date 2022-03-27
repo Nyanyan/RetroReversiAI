@@ -318,12 +318,6 @@ inline uint8_t pop_count(uint64_t x) {
 
 inline int evaluate(uint64_t me, uint64_t op) {
   int res = 0;
-  /*
-    for (uint8_t i = 0; i < hw2; ++i) {
-    res += weight[i] * (1 & (me >> i));
-    res -= weight[i] * (1 & (op >> i));
-    }
-  */
   uint8_t cell;
   for (cell = first_bit(&me); me; cell = next_bit(&me))
     res += weight[cell];
@@ -389,7 +383,34 @@ inline void send_slave(uint64_t me, uint64_t op, int depth, int alpha, int beta,
   busy[i] = true;
 }
 
+int nega_alpha_depth1(uint64_t me, uint64_t op, int alpha, int beta, bool skipped) {
+  uint64_t legal = calc_legal(me, op);
+  if (!legal) {
+    if (skipped)
+      return end_game(me, op);
+    return -nega_alpha_depth1(op, me, -beta, -alpha, true);
+  }
+  uint64_t flip;
+  int g;
+  for (uint8_t cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
+    flip = calc_flip(me, op, cell);
+    flip_do(&me, &op, flip, cell);
+    g = evaluate(me, op);
+    flip_undo(&me, &op, flip, cell);
+    alpha = max(alpha, g);
+    if (beta <= alpha)
+      return alpha;
+  }
+  return alpha;
+}
+
 int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
+  if (depth == 1)
+    return nega_alpha_depth1(me, op, alpha, beta, skipped);
+  /*
+  if (depth == 0)
+    return evaluate(me, op);
+  */
   uint64_t legal_flip = calc_legal(me, op);
   const uint8_t canput = pop_count(legal_flip);
   if (canput == 0) {
@@ -397,30 +418,29 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
       return end_game(me, op);
     return -nega_alpha(op, me, depth, -beta, -alpha, true);
   }
-  if (depth == 0) {
-    return evaluate(me, op);
-  }
   int values[canput];
   uint8_t places[canput];
   uint8_t i = 0;
-  if (depth <= 3) {
+  if (depth <= 100) {
     for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
       places[i] = cell;
       values[i] = weight[cell];
       ++i;
     }
-  } else{
+  } else {
+    uint64_t flip;
     for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
       places[i] = cell;
-      flip_do(&me, &op, legal_flip, places[i]);
+      flip = calc_flip(me, op, cell);
+      flip_do(&me, &op, flip, cell);
       values[i] = evaluate(me, op);
-      flip_undo(&me, &op, legal_flip, places[i]);
+      flip_undo(&me, &op, flip, cell);
       ++i;
     }
   }
   move_ordering(places, values, canput);
   int g;
-  if (2 <= depth - 1 && depth - 1 <= slave_depth) {
+  if (1 <= depth - 1 && depth - 1 <= slave_depth) {
     for (i = 0; i < canput / 6 + 1; ++i) {
       legal_flip = calc_flip(me, op, places[i]);
       flip_do(&me, &op, legal_flip, places[i]);
@@ -494,14 +514,17 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
 }
 
 inline int ai(uint64_t me, uint64_t op) {
-  uint64_t legal_flip = calc_legal(me, op);
+  uint64_t legal_flip = calc_legal(me, op), flip;
   const uint8_t canput = pop_count(legal_flip);
   int values[canput];
   uint8_t places[canput];
   uint8_t i = 0;
   for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
     places[i] = cell;
-    values[i] = weight[i];
+    flip = calc_flip(me, op, cell);
+    flip_do(&me, &op, flip, cell);
+    values[i] = evaluate(me, op);
+    flip_undo(&me, &op, flip, cell);
     ++i;
   }
   move_ordering(places, values, canput);

@@ -217,10 +217,11 @@ inline int pop_count(uint64_t x) {
 
 inline int evaluate(const uint64_t me, const uint64_t op) {
   int res = 0;
-  for (uint8_t i = 0; i < hw2; ++i) {
-    res += weight[i] * (1 & (me >> i));
-    res -= weight[i] * (1 & (op >> i));
-  }
+  uint8_t cell;
+  for (cell = first_bit(&me); me; cell = next_bit(&me))
+    res += weight[cell];
+  for (cell = first_bit(&op); op; cell = next_bit(&op))
+    res -= weight[cell];
   return max(-score_max, min(score_max, res));
 }
 
@@ -244,20 +245,48 @@ inline void move_ordering(int places[], int values[], const int siz) {
   }
 }
 
-inline int ntz(uint64_t *x) {
+inline uint8_t ntz(uint64_t *x) {
   return pop_count((*x & (-(*x))) - 1);
 }
 
-inline int first_bit(uint64_t *x) {
+inline uint8_t first_bit(uint64_t *x) {
   return ntz(x);
 }
 
-inline int next_bit(uint64_t *x) {
+inline uint8_t next_bit(uint64_t *x) {
   *x &= *x - 1;
   return ntz(x);
 }
 
+int nega_alpha_depth1(uint64_t me, uint64_t op, int alpha, int beta, bool skipped){
+  uint64_t legal = calc_legal(me, op);
+  if (!legal){
+    if (skipped)
+      return end_game(me, op);
+    return -nega_alpha_depth1(op, me, -beta, -alpha, true);
+  }
+  uint64_t flip;
+  int g, v = -score_max;
+  for (uint8_t cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
+    flip = calc_flip(me, op, cell);
+    flip_do(&me, &op, flip, cell);
+    g = evaluate(me, op);
+    flip_undo(&me, &op, flip, cell);
+    alpha = max(alpha, g);
+    if (beta <= alpha)
+      return alpha;
+    v = max(v, g);
+  }
+  return v;
+}
+
 int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
+  if (depth == 1)
+    return nega_alpha_depth1(me, op, alpha, beta, skipped);
+  /*
+  if (depth == 0)
+    return evaluate(me, op);
+  */
   uint64_t legal = calc_legal(me, op);
   const int canput = pop_count(legal);
   if (canput == 0) {
@@ -265,12 +294,9 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
       return end_game(me, op);
     return -nega_alpha(op, me, depth, -beta, -alpha, true);
   }
-  if (depth == 0) {
-    return evaluate(me, op);
-  }
   int values[canput], places[canput];
   int i = 0;
-  for (int cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
+  for (uint8_t cell = first_bit(&legal); legal; cell = next_bit(&legal)) {
     places[i] = cell;
     values[i] = weight[cell];
     ++i;
@@ -320,7 +346,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(15);
+  Wire.begin(8);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
