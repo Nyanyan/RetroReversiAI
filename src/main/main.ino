@@ -22,7 +22,7 @@ SoftwareSerial button(12, 13); // RX, TX
 
 #define hw 8
 #define hw2 64
-#define n_slaves 4
+#define n_slaves 8
 #define slave_depth 3
 #define max_depth 6
 #define score_max 6400
@@ -49,7 +49,7 @@ const uint8_t led_arr_r[64] = {
   15, 8, 9, 10, 11, 12, 13, 14
 };
 
-const uint8_t slaves[n_slaves] = {8, 9, 10, 11};
+const uint8_t slaves[n_slaves] = {8, 9, 10, 11, 12, 13, 14, 15};
 
 const int8_t weight[hw2] = {
   30, -12, 0, -1, -1, 0, -12, 30,
