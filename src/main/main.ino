@@ -22,7 +22,7 @@ SoftwareSerial button(12, 13); // RX, TX
 
 #define hw 8
 #define hw2 64
-#define n_slaves 8
+#define n_slaves 4
 #define slave_depth 3
 #define max_depth 6
 #define score_max 6400
@@ -49,7 +49,7 @@ const uint8_t led_arr_r[64] = {
   15, 8, 9, 10, 11, 12, 13, 14
 };
 
-const uint8_t slaves[n_slaves] = {8, 9, 10, 11, 12, 13, 14, 15};
+const uint8_t slaves[n_slaves] = {8, 9, 10, 11};
 
 const int8_t weight[hw2] = {
   30, -12, 0, -1, -1, 0, -12, 30,
@@ -383,6 +383,13 @@ inline void send_slave(uint64_t me, uint64_t op, int depth, int alpha, int beta,
   busy[i] = true;
 }
 
+inline void stop_slave(int i) {
+  Wire.beginTransmission(slaves[i]);
+  Wire.write(0);
+  Wire.endTransmission();
+  busy[i] = false;
+}
+
 int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
   if (depth == 0)
     return evaluate(me, op);
@@ -396,42 +403,53 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
   int values[canput];
   uint8_t places[canput];
   uint8_t i = 0;
-  for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
-    places[i] = cell;
-    values[i] = weight[cell];
-    ++i;
+  if (depth <= 4) {
+    for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
+      places[i] = cell;
+      values[i] = weight[cell];
+      ++i;
+    }
+  } else {
+    uint64_t flip;
+    for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
+      places[i] = cell;
+      flip = calc_flip(me, op, cell);
+      flip_do(&me, &op, flip, cell);
+      values[i] = evaluate(me, op);
+      flip_undo(&me, &op, flip, cell);
+      ++i;
+    }
   }
   move_ordering(places, values, canput);
   int g;
   if (depth - 1 <= slave_depth) {
-    for (i = 0; i < canput / 6 + 1; ++i) {
-      legal_flip = calc_flip(me, op, places[i]);
-      flip_do(&me, &op, legal_flip, places[i]);
-      g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
-      flip_undo(&me, &op, legal_flip, places[i]);
-      alpha = max(alpha, g);
-      if (beta <= alpha)
-        return alpha;
-    }
+    legal_flip = calc_flip(me, op, places[0]);
+    flip_do(&me, &op, legal_flip, places[0]);
+    g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
+    flip_undo(&me, &op, legal_flip, places[0]);
+    alpha = max(alpha, g);
+    if (beta <= alpha)
+      return alpha;
     bool sent;
     uint8_t j;
     int tmp1, tmp2;
-    for (i = canput / 6 + 1; i < canput; ++i) {
+    for (i = 1; i < canput; ++i) {
       sent = false;
       legal_flip = calc_flip(me, op, places[i]);
       flip_do(&me, &op, legal_flip, places[i]);
-      for (j = 0; j < n_slaves; ++j) {
-        if (!busy[j] && alpha < beta) {
+      for (j = 0; j < n_slaves && alpha < beta; ++j) {
+        if (!busy[j]) {
           send_slave(op, me, depth - 1, -beta, -alpha, j);
           sent = true;
-          break;
-        } else if (busy[j]) {
+          values[i] = -score_max * 2 + j;
+        } else {
           Wire.requestFrom(slaves[j], 3U);
           if (Wire.read()) {
             tmp1 = (int)Wire.read();
             tmp2 = (int)Wire.read();
             g = -(tmp1 * 256 + tmp2 - score_max);
             busy[j] = false;
+            values[i] = -score_max;
             alpha = max(alpha, g);
           } else {
             Wire.read();
@@ -447,19 +465,24 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
       if (beta <= alpha)
         break;
     }
-    for (i = 0; i < n_slaves; ++i) {
-      while (busy[i]) {
-        Wire.requestFrom(slaves[i], 3U);
-        if (Wire.read()) {
-          tmp1 = (int)Wire.read();
-          tmp2 = (int)Wire.read();
-          g = -(tmp1 * 256 + tmp2 - score_max);
-          busy[i] = false;
-          alpha = max(alpha, g);
-        } else {
-          Wire.read();
-          Wire.read();
-        }
+    for (i = 1; i < canput; ++i) {
+      if (values[i] < -score_max && busy[values[i] + score_max * 2]) {
+        if (alpha < beta) {
+          while (busy[values[i] + score_max * 2]) {
+            Wire.requestFrom(slaves[values[i] + score_max * 2], 3U);
+            if (Wire.read()) {
+              tmp1 = (int)Wire.read();
+              tmp2 = (int)Wire.read();
+              g = -(tmp1 * 256 + tmp2 - score_max);
+              busy[values[i] + score_max * 2] = false;
+              alpha = max(alpha, g);
+            } else {
+              Wire.read();
+              Wire.read();
+            }
+          }
+        } else
+          stop_slave(values[i] + score_max * 2);
       }
     }
   } else {
@@ -482,9 +505,13 @@ inline int ai(uint64_t me, uint64_t op) {
   int values[canput];
   uint8_t places[canput];
   uint8_t i = 0;
+  uint64_t flip;
   for (uint8_t cell = first_bit(&legal_flip); legal_flip; cell = next_bit(&legal_flip)) {
     places[i] = cell;
-    values[i] = weight[i];
+    flip = calc_flip(me, op, cell);
+    flip_do(&me, &op, flip, cell);
+    values[i] = evaluate(me, op);
+    flip_undo(&me, &op, flip, cell);
     ++i;
   }
   move_ordering(places, values, canput);

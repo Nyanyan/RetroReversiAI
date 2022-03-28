@@ -9,14 +9,15 @@ uint64_t in_me, in_op;
 int in_alpha, in_beta;
 int val1, val2;
 int in_depth;
+bool is_searching = true;
 
 const int8_t weight[hw2] = {
   30, -12, 0, -1, -1, 0, -12, 30,
   -12, -15, -3, -3, -3, -3, -15, -12,
-  0, -3, 0, -1, -1, 0, -3, 0, 
-  -1, -3, -1, -1, -1, -1, -3, -1, 
-  -1, -3, -1, -1, -1, -1, -3, -1, 
-  0, -3, 0, -1, -1, 0, -3, 0, 
+  0, -3, 0, -1, -1, 0, -3, 0,
+  -1, -3, -1, -1, -1, -1, -3, -1,
+  -1, -3, -1, -1, -1, -1, -3, -1,
+  0, -3, 0, -1, -1, 0, -3, 0,
   -12, -15, -3, -3, -3, -3, -15, -12,
   30, -12, 0, -1, -1, 0, -12, 30
 };
@@ -259,6 +260,8 @@ inline uint8_t next_bit(uint64_t *x) {
 }
 
 int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool skipped) {
+  if (!is_searching)
+    return -score_max;
   if (depth == 0)
     return evaluate(me, op);
   uint64_t legal = calc_legal(me, op);
@@ -291,24 +294,33 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
 }
 
 void receive(int num) {
-  waiting = false;
-  int i;
-  int tmp1, tmp2;
-  in_me = 0ULL;
-  in_op = 0ULL;
-  while (Wire.available() < 21);
-  for (i = 0; i < hw; ++i)
-    in_me |= ((uint64_t)Wire.read()) << (hw * i);
-  for (i = 0; i < hw; ++i)
-    in_op |= ((uint64_t)Wire.read()) << (hw * i);
-  tmp1 = Wire.read();
-  tmp2 = Wire.read();
-  in_alpha = tmp1 * 256 + tmp2 - score_max;
-  tmp1 = Wire.read();
-  tmp2 = Wire.read();
-  in_beta = tmp1 * 256 + tmp2 - score_max;
-  in_depth = Wire.read();
-  digitalWrite(5, HIGH);
+  delay(1);
+  if (Wire.available() == 1) {
+    Wire.read();
+    is_searching = false;
+    waiting = true;
+    digitalWrite(5, LOW);
+  } else {
+    int i;
+    int tmp1, tmp2;
+    in_me = 0ULL;
+    in_op = 0ULL;
+    while (Wire.available() < 21);
+    for (i = 0; i < hw; ++i)
+      in_me |= ((uint64_t)Wire.read()) << (hw * i);
+    for (i = 0; i < hw; ++i)
+      in_op |= ((uint64_t)Wire.read()) << (hw * i);
+    tmp1 = Wire.read();
+    tmp2 = Wire.read();
+    in_alpha = tmp1 * 256 + tmp2 - score_max;
+    tmp1 = Wire.read();
+    tmp2 = Wire.read();
+    in_beta = tmp1 * 256 + tmp2 - score_max;
+    in_depth = Wire.read();
+    digitalWrite(5, HIGH);
+    waiting = false;
+    is_searching = true;
+  }
 }
 
 void request() {
@@ -320,7 +332,7 @@ void request() {
 }
 
 void setup() {
-  Wire.begin(15);
+  Wire.begin(11);
   Wire.setClock(400000);
   pinMode(SDA, INPUT);
   pinMode(SCL, INPUT);
