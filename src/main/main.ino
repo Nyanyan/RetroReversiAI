@@ -437,27 +437,14 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
       sent = false;
       legal_flip = calc_flip(me, op, places[i]);
       flip_do(&me, &op, legal_flip, places[i]);
-      for (j = 0; j < n_slaves && alpha < beta; ++j) {
+      for (j = 0; j < n_slaves && !sent; ++j) {
         if (!busy[j]) {
           send_slave(op, me, depth - 1, -beta, -alpha, j);
           sent = true;
           values[i] = -score_max * 2 + j;
-        } else {
-          Wire.requestFrom(slaves[j], 3U);
-          if (Wire.read()) {
-            tmp1 = (int)Wire.read();
-            tmp2 = (int)Wire.read();
-            g = -(tmp1 * 256 + tmp2 - score_max);
-            busy[j] = false;
-            values[i] = -score_max;
-            alpha = max(alpha, g);
-          } else {
-            Wire.read();
-            Wire.read();
-          }
         }
       }
-      if (!sent && alpha < beta) {
+      if (!sent) {
         g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
         alpha = max(alpha, g);
       }
