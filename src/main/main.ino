@@ -447,6 +447,24 @@ int nega_alpha(uint64_t me, uint64_t op, int depth, int alpha, int beta, bool sk
       if (!sent) {
         g = -nega_alpha(op, me, depth - 1, -beta, -alpha, false);
         alpha = max(alpha, g);
+        for (j = 1; j < i; ++j) {
+          if (values[j] < -score_max && busy[values[j] + score_max * 2]) {
+            if (alpha < beta) {
+              Wire.requestFrom(slaves[values[j] + score_max * 2], 3U);
+              if (Wire.read()) {
+                tmp1 = (int)Wire.read();
+                tmp2 = (int)Wire.read();
+                g = -(tmp1 * 256 + tmp2 - score_max);
+                busy[values[j] + score_max * 2] = false;
+                alpha = max(alpha, g);
+              } else {
+                Wire.read();
+                Wire.read();
+              }
+            } else
+              stop_slave(values[j] + score_max * 2);
+          }
+        }
       }
       flip_undo(&me, &op, legal_flip, places[i]);
       if (beta <= alpha)
